@@ -1,3 +1,5 @@
+// screens/entry_editor_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,7 +8,7 @@ import '../services/journal_service.dart';
 import '../services/crypto_service.dart';
 
 class EntryEditorScreen extends StatefulWidget {
-  final JournalEntry? entry;
+  final JournalEntry? entry; // null = new entry
 
   const EntryEditorScreen({super.key, this.entry});
 
@@ -47,6 +49,8 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
     if (_isEditing) {
       await journal.updateEntry(widget.entry!.id, content);
     } else {
+      // createEntry uses Step 5 hybrid encryption.
+      // Swap with createEntryStep3 or createEntryStep1 for earlier steps.
       await journal.createEntry(content);
     }
 
@@ -92,8 +96,10 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
       ),
       body: Column(
         children: [
+          // Crypto status banner
           _CryptoBanner(hasKeys: crypto.hasKeys),
 
+          // Editor
           Expanded(
             child: Padding(
               padding: const EdgeInsets.all(20),

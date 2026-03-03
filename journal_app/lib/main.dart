@@ -7,6 +7,26 @@ import 'services/crypto_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/journal_list_screen.dart';
 
+/// ─────────────────────────────────────────────────────────────────────────────
+/// BLOG SERIES: E2EE Journal App
+///
+/// This app is built incrementally across 6 steps:
+///
+///  Step 1 – No encryption.  Plain text in, plain text out.
+///  Step 2 – Server-side encryption at rest (server holds the key).
+///           Client is unchanged; server encrypts before persisting.
+///  Step 3 – Client-side symmetric encryption.  Password → KDF → AES key.
+///           Server only ever sees ciphertext.
+///  Step 4 – Asymmetric keypair generation & storage.  Private key encrypted
+///           locally with the Step 3 key before upload.
+///  Step 5 – Hybrid encryption.  Each entry gets a random content key
+///           encrypted with the author's own public key.
+///  Step 6 – Sharing.  Content key re-encrypted for each recipient's
+///           public key.  Server stores one encrypted key blob per share.
+///
+/// Each step's code is annotated with // [StepN] so you can follow the
+/// progression without hunting through files.
+/// ─────────────────────────────────────────────────────────────────────────────
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const JournalApp());

@@ -1,10 +1,14 @@
 // services/auth_service.dart
 //
 // Handles registration, login, and session state.
+// From Step 3 onward, the password never leaves this device in plaintext —
+// it is fed directly into CryptoService.deriveKeyFromPassword().
 //
-// [Step 3] Password derives local encryption key via CryptoService.
-// [Step 4] Registration generates an X25519 keypair; private key is encrypted
-//          with the derived key before upload.  Login decrypts it back.
+// BLOG NOTE (Step 3): Compare this to a conventional auth flow where the
+// password is hashed server-side (bcrypt/scrypt).  Here the password does TWO
+// jobs: it authenticates the user (via a separate auth token) AND it derives
+// the encryption key.  These are independent operations and that's intentional
+// — auth and encryption are separate concerns.
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
@@ -29,17 +33,18 @@ class AuthService extends ChangeNotifier {
   String? get error => _error;
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://localhost:8000',
+    baseUrl: 'http://localhost:8000', // Point to your FastAPI server
     connectTimeout: const Duration(seconds: 10),
   ));
 
-  // ── Step 1 (preserved for reference) ───────────────────────────────────────
+  // ── Step 1 ─────────────────────────────────────────────────────────────────
+  // Basic registration.  Username + password, server creates the user.
 
   Future<bool> registerStep1(String username, String password) async {
     try {
       final resp = await _dio.post('/auth/register', data: {
         'username': username,
-        'password': password,
+        'password': password, // [Step1] password sent to server for hashing
       });
       return _handleAuthResponse(resp.data);
     } on DioException catch (e) {
@@ -49,6 +54,49 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  // ── Step 3+ ────────────────────────────────────────────────────────────────
+  // Registration with client-side key derivation.
+  // The password still goes to the server for authentication (bcrypt there),
+  // but CryptoService also derives the local encryption key from it.
+  //
+  // BLOG NOTE: The server never sees the encryption key — only the auth token
+  // it issues.  The password leaves the device once for auth, but key
+  // derivation happens locally before that call.
+
+  Future<bool> register(
+    String username,
+    String password,
+    CryptoService crypto,
+  ) async {
+    try {
+      _error = null;
+
+      // [Step3] Derive local encryption key from password BEFORE any network
+      // call.  Even if we sniff the traffic, the key is never transmitted.
+      await crypto.deriveKeyFromPassword(password, username);
+
+      // [Step4] Generate keypair; private key is encrypted with derived key.
+      final keys = await crypto.generateAndStoreKeypair();
+
+      // Send registration data to server.
+      // The server stores: username, bcrypt(password), publicKey,
+      //                    encryptedPrivateKey (opaque blob to the server).
+      final resp = await _dio.post('/auth/register', data: {
+        'username': username,
+        'password': password, // server-side auth only (will be bcrypt'd)
+        'public_key': keys.publicKey,                       // [Step4]
+        'encrypted_private_key': keys.encryptedPrivateKey,  // [Step4]
+      });
+
+      return _handleAuthResponse(resp.data);
+    } on DioException catch (e) {
+      _error = e.response?.data?['detail'] ?? 'Registration failed';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Step 1 login (no crypto) ───────────────────────────────────────────────
   Future<bool> loginStep1(String username, String password) async {
     try {
       final resp = await _dio.post('/auth/login', data: {
@@ -63,39 +111,11 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ── Step 3+ Registration (with key derivation and keypair) ─────────────────
-
-  Future<bool> register(
-    String username,
-    String password,
-    CryptoService crypto,
-  ) async {
-    try {
-      _error = null;
-
-      // [Step 3] Derive local encryption key from password.
-      await crypto.deriveKeyFromPassword(password, username);
-
-      // [Step 4] Generate keypair; private key is encrypted with derived key.
-      final keys = await crypto.generateAndStoreKeypair();
-
-      final resp = await _dio.post('/auth/register', data: {
-        'username': username,
-        'password': password,
-        'public_key': keys.publicKey,
-        'encrypted_private_key': keys.encryptedPrivateKey,
-      });
-
-      return _handleAuthResponse(resp.data);
-    } on DioException catch (e) {
-      _error = e.response?.data?['detail'] ?? 'Registration failed';
-      notifyListeners();
-      return false;
-    }
-  }
-
-  // ── Step 3+ Login ──────────────────────────────────────────────────────────
-
+  // ── Step 3+ login ──────────────────────────────────────────────────────────
+  // After auth, fetch the encrypted private key from the server and decrypt it
+  // locally.  The server returns an opaque blob; we decrypt with the derived
+  // key.  If the password is wrong, decryption fails — this is the correct
+  // behaviour.
   Future<bool> login(
     String username,
     String password,
@@ -104,7 +124,7 @@ class AuthService extends ChangeNotifier {
     try {
       _error = null;
 
-      // [Step 3] Derive key locally first.
+      // [Step3] Derive key locally first.
       await crypto.deriveKeyFromPassword(password, username);
 
       final resp = await _dio.post('/auth/login', data: {
@@ -114,7 +134,7 @@ class AuthService extends ChangeNotifier {
 
       if (!_handleAuthResponse(resp.data)) return false;
 
-      // [Step 4] Server returns the encrypted private key; decrypt locally.
+      // [Step4] Server returns the user's encrypted private key and public key.
       final userData = resp.data['user'] as Map<String, dynamic>;
       if (userData['encrypted_private_key'] != null) {
         await crypto.unlockPrivateKey(
@@ -179,6 +199,7 @@ class AuthService extends ChangeNotifier {
 
     final cryptoRestored = await crypto.tryRestoreSession();
     if (!cryptoRestored) {
+      // Crypto session could not be restored — force re-login.
       await logout(crypto);
       return false;
     }

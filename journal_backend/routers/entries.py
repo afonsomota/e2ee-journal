@@ -1,7 +1,9 @@
 # routers/entries.py
 #
-# From Step 3 onward the server is essentially a dumb blob store.
-# [Step 5] adds encrypted_content_key — the server stores it but cannot read it.
+# BLOG NOTE: Notice how the entries endpoints get progressively simpler from
+# the server's perspective.  In Step 1 the server handles real content; from
+# Step 3 onward it is essentially a dumb key-value store for blobs.
+# The sharing endpoint (Step 6) only deals with encrypted key material.
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -15,10 +17,14 @@ from routers.auth import current_user
 router = APIRouter()
 
 
+# ── Schemas ────────────────────────────────────────────────────────────────────
+
 class CreateEntryRequest(BaseModel):
+    # [Step1/2] Plaintext content.
     content: Optional[str] = None
+    # [Step3+] Encrypted blob: base64(nonce || ciphertext).
     encrypted_blob: Optional[str] = None
-    # [Step 5] Content key encrypted for the author.
+    # [Step5+] Content key encrypted for the author.
     encrypted_content_key: Optional[str] = None
 
 
@@ -27,7 +33,16 @@ class UpdateEntryRequest(BaseModel):
     encrypted_blob: Optional[str] = None
 
 
-def _serialize_entry(row: dict) -> dict:
+class ShareRequest(BaseModel):
+    # [Step6]
+    recipient_username: str
+    encrypted_content_key: str  # content key encrypted for the recipient
+
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def _serialize_entry(row: dict, shared_with: list[str] = None,
+                     shared_eck: str = None) -> dict:
     return {
         "id": row["id"],
         "author_id": row["author_id"],
@@ -35,10 +50,14 @@ def _serialize_entry(row: dict) -> dict:
         "content": row["content"] or "",
         "encrypted_blob": row["encrypted_blob"],
         "encrypted_content_key": row["encrypted_content_key"],
+        "shared_encrypted_content_key": shared_eck,
+        "shared_with": shared_with or [],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
 
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
 
 @router.post("")
 async def create_entry(
@@ -47,9 +66,7 @@ async def create_entry(
     db=Depends(get_db),
 ):
     if not req.content and not req.encrypted_blob:
-        raise HTTPException(
-            status_code=400, detail="Content or encrypted_blob required"
-        )
+        raise HTTPException(status_code=400, detail="Content or encrypted_blob required")
 
     entry_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
@@ -62,9 +79,9 @@ async def create_entry(
         (
             entry_id,
             user["id"],
-            req.content,
-            req.encrypted_blob,
-            req.encrypted_content_key,
+            req.content,              # [Step1/2] plaintext
+            req.encrypted_blob,       # [Step3+]
+            req.encrypted_content_key,# [Step5+]
             now,
             now,
         ),
@@ -78,6 +95,8 @@ async def create_entry(
         "content": req.content or "",
         "encrypted_blob": req.encrypted_blob,
         "encrypted_content_key": req.encrypted_content_key,
+        "shared_encrypted_content_key": None,
+        "shared_with": [],
         "created_at": now,
         "updated_at": now,
     }
@@ -85,6 +104,7 @@ async def create_entry(
 
 @router.get("")
 async def list_entries(user=Depends(current_user), db=Depends(get_db)):
+    """Return the current user's own entries with share lists."""
     async with db.execute(
         """SELECT e.*, u.username as author_username
            FROM entries e
@@ -95,7 +115,44 @@ async def list_entries(user=Depends(current_user), db=Depends(get_db)):
     ) as cur:
         rows = [dict(r) for r in await cur.fetchall()]
 
-    return [_serialize_entry(row) for row in rows]
+    # Enrich with shared_with lists.
+    result = []
+    for row in rows:
+        async with db.execute(
+            """SELECT u.username FROM shares s
+               JOIN users u ON u.id = s.recipient_id
+               WHERE s.entry_id = ?""",
+            (row["id"],),
+        ) as cur:
+            shared_with = [r["username"] for r in await cur.fetchall()]
+        result.append(_serialize_entry(row, shared_with=shared_with))
+
+    return result
+
+
+@router.get("/shared-with-me")
+async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)):
+    """
+    [Step6] Return entries shared with the current user.
+    Crucially: returns the encrypted_content_key encrypted FOR THIS USER,
+    not the one stored with the entry (which is for the author).
+    """
+    async with db.execute(
+        """SELECT e.*, u.username as author_username,
+                  s.encrypted_content_key as shared_eck
+           FROM entries e
+           JOIN users u ON u.id = e.author_id
+           JOIN shares s ON s.entry_id = e.id
+           WHERE s.recipient_id = ?
+           ORDER BY e.updated_at DESC""",
+        (user["id"],),
+    ) as cur:
+        rows = [dict(r) for r in await cur.fetchall()]
+
+    return [
+        _serialize_entry(row, shared_eck=row["shared_eck"])
+        for row in rows
+    ]
 
 
 @router.put("/{entry_id}")
@@ -144,6 +201,84 @@ async def delete_entry(
     if row["author_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Not your entry")
 
+    # CASCADE deletes shares too.
     await db.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
     await db.commit()
+    return {"ok": True}
+
+
+@router.post("/{entry_id}/share")
+async def share_entry(
+    entry_id: str,
+    req: ShareRequest,
+    user=Depends(current_user),
+    db=Depends(get_db),
+):
+    """
+    [Step6] Store a copy of the content key encrypted for the recipient.
+    
+    BLOG NOTE: The server's role here is minimal — it just stores a mapping
+    from (entry, recipient) to an encrypted key blob.  It cannot verify that
+    the key blob is correct because it can't read any of the underlying keys.
+    This is intentional: verification is the client's job, not the server's.
+    """
+    # Verify caller owns the entry.
+    async with db.execute(
+        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
+    ) as cur:
+        row = await cur.fetchone()
+
+    if row is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if row["author_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your entry")
+
+    # Resolve recipient.
+    async with db.execute(
+        "SELECT id FROM users WHERE username = ?", (req.recipient_username,)
+    ) as cur:
+        recipient = await cur.fetchone()
+
+    if recipient is None:
+        raise HTTPException(status_code=404, detail="Recipient user not found")
+
+    share_id = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+
+    # Upsert: re-sharing with the same user updates the key blob.
+    await db.execute(
+        """INSERT INTO shares (id, entry_id, recipient_id, encrypted_content_key, created_at)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(entry_id, recipient_id)
+           DO UPDATE SET encrypted_content_key = excluded.encrypted_content_key""",
+        (share_id, entry_id, recipient["id"], req.encrypted_content_key, now),
+    )
+    await db.commit()
+    return {"ok": True, "shared_with": req.recipient_username}
+
+
+@router.delete("/{entry_id}/share/{username}")
+async def revoke_share(
+    entry_id: str,
+    username: str,
+    user=Depends(current_user),
+    db=Depends(get_db),
+):
+    """
+    [Step6] Revoke access by deleting the key blob for the recipient.
+    They can no longer fetch a key to decrypt the entry.
+    BLOG NOTE: If they've cached the decrypted content locally, this won't
+    help.  True revocation requires re-encryption — see Step 8 discussion.
+    """
+    async with db.execute(
+        "SELECT id FROM users WHERE username = ?", (username,)
+    ) as cur:
+        recipient = await cur.fetchone()
+
+    if recipient:
+        await db.execute(
+            "DELETE FROM shares WHERE entry_id = ? AND recipient_id = ?",
+            (entry_id, recipient["id"]),
+        )
+        await db.commit()
     return {"ok": True}

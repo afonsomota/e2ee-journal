@@ -1,3 +1,5 @@
+// screens/auth_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -57,6 +59,8 @@ class _AuthScreenState extends State<AuthScreen>
     final auth = context.read<AuthService>();
     final crypto = context.read<CryptoService>();
 
+    // BLOG NOTE: We call the Step 3+ methods which include key derivation.
+    // To follow Step 1 only, swap these for registerStep1/loginStep1.
     final ok = isRegister
         ? await auth.register(username, password, crypto)
         : await auth.login(username, password, crypto);
@@ -90,6 +94,7 @@ class _AuthScreenState extends State<AuthScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Logo / title
                   Icon(Icons.lock_outline,
                       size: 56, color: scheme.primary),
                   const SizedBox(height: 12),
@@ -112,6 +117,7 @@ class _AuthScreenState extends State<AuthScreen>
                   ),
                   const SizedBox(height: 40),
 
+                  // Tabs
                   TabBar(
                     controller: _tabs,
                     labelColor: scheme.primary,

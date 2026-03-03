@@ -9,21 +9,37 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  dio: ^5.4.0
-  provider: ^6.1.1
-  shared_preferences: ^2.2.2
-  cupertino_icons: ^1.0.2
 
-  # [Step 3] Cryptography — libsodium bindings (sumo variant for Argon2id)
+  # HTTP client
+  dio: ^5.4.0
+
+  # Secure local storage (for private key)
+  flutter_secure_storage: ^9.0.0
+
+  # Cryptography — libsodium bindings for Dart (sumo variant for pwhash)
+  # Covers: Argon2id KDF, X25519 keypairs, XSalsa20-Poly1305 box, SecretBox
   sodium_libs: ^3.4.6
 
-  # [Step 3] Secure local storage for encryption keys
-  flutter_secure_storage: ^9.0.0
+  # State management
+  provider: ^6.1.1
+
+  # UUID generation (for entry IDs)
+  uuid: ^4.3.3
+
+  # JSON serialization
+  json_annotation: ^4.8.1
+
+  # Shared preferences (non-sensitive local state)
+  shared_preferences: ^2.2.2
+
+  cupertino_icons: ^1.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  build_runner: ^2.4.8
+  json_serializable: ^6.7.1
 
 flutter:
   uses-material-design: true

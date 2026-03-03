@@ -1,3 +1,5 @@
+// screens/journal_list_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -8,8 +10,28 @@ import '../models/journal_entry.dart';
 import 'entry_editor_screen.dart';
 import 'entry_detail_screen.dart';
 
-class JournalListScreen extends StatelessWidget {
+class JournalListScreen extends StatefulWidget {
   const JournalListScreen({super.key});
+
+  @override
+  State<JournalListScreen> createState() => _JournalListScreenState();
+}
+
+class _JournalListScreenState extends State<JournalListScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +52,7 @@ class JournalListScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // E2EE status badge — reflects whether keypair is loaded
+          // E2EE status badge
           Consumer<CryptoService>(
             builder: (_, crypto, __) => Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -62,35 +84,58 @@ class JournalListScreen extends StatelessWidget {
             tooltip: 'Logout',
           ),
         ],
+        bottom: TabBar(
+          controller: _tabs,
+          labelColor: scheme.surface,
+          unselectedLabelColor: scheme.surface.withValues(alpha: 0.6),
+          indicatorColor: scheme.secondary,
+          tabs: [
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.book_outlined, size: 16),
+                  const SizedBox(width: 6),
+                  const Text('My Entries'),
+                  if (journal.entries.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _Badge('${journal.entries.length}'),
+                  ],
+                ],
+              ),
+            ),
+            Tab(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.people_outline, size: 16),
+                  const SizedBox(width: 6),
+                  const Text('Shared with Me'),
+                  if (journal.sharedWithMe.isNotEmpty) ...[
+                    const SizedBox(width: 6),
+                    _Badge('${journal.sharedWithMe.length}'),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
       body: journal.loading
           ? const Center(child: CircularProgressIndicator())
-          : journal.entries.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.book_outlined,
-                          size: 64, color: Colors.grey.shade300),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No entries yet.\nTap the button to write your first.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey.shade500),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: () => context.read<JournalService>().fetchAll(),
-                  child: ListView.separated(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: journal.entries.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (ctx, i) =>
-                        _EntryCard(entry: journal.entries[i]),
-                  ),
+          : TabBarView(
+              controller: _tabs,
+              children: [
+                _EntryList(
+                  entries: journal.entries,
+                  isOwned: true,
                 ),
+                _EntryList(
+                  entries: journal.sharedWithMe,
+                  isOwned: false,
+                ),
+              ],
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.push(
           context,
@@ -105,12 +150,79 @@ class JournalListScreen extends StatelessWidget {
   }
 }
 
-class _EntryCard extends StatelessWidget {
-  final JournalEntry entry;
-  const _EntryCard({required this.entry});
+class _Badge extends StatelessWidget {
+  final String label;
+  const _Badge(this.label);
 
   @override
   Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.secondary,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(label,
+          style: const TextStyle(fontSize: 10, color: Colors.white)),
+    );
+  }
+}
+
+class _EntryList extends StatelessWidget {
+  final List<JournalEntry> entries;
+  final bool isOwned;
+
+  const _EntryList({required this.entries, required this.isOwned});
+
+  @override
+  Widget build(BuildContext context) {
+    if (entries.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isOwned ? Icons.book_outlined : Icons.inbox_outlined,
+              size: 64,
+              color: Colors.grey.shade300,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isOwned
+                  ? 'No entries yet.\nTap the button to write your first.'
+                  : 'Nothing shared with you yet.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => context.read<JournalService>().fetchAll(),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: entries.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 8),
+        itemBuilder: (ctx, i) => _EntryCard(
+          entry: entries[i],
+          isOwned: isOwned,
+        ),
+      ),
+    );
+  }
+}
+
+class _EntryCard extends StatelessWidget {
+  final JournalEntry entry;
+  final bool isOwned;
+
+  const _EntryCard({required this.entry, required this.isOwned});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final preview = entry.content.length > 120
         ? '${entry.content.substring(0, 120)}…'
         : entry.content;
@@ -123,7 +235,8 @@ class _EntryCard extends StatelessWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => EntryDetailScreen(entry: entry),
+            builder: (_) =>
+                EntryDetailScreen(entry: entry, isOwned: isOwned),
           ),
         ),
         child: Padding(
@@ -133,6 +246,7 @@ class _EntryCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  // Encryption indicator
                   Icon(
                     entry.encryptedBlob != null ? Icons.lock : Icons.lock_open,
                     size: 14,
@@ -141,10 +255,31 @@ class _EntryCard extends StatelessWidget {
                         : Colors.orange,
                   ),
                   const SizedBox(width: 6),
-                  Text(
-                    _formatDate(entry.updatedAt),
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  if (!isOwned)
+                    Text(
+                      'from ${entry.authorUsername}  ·  ',
+                      style: TextStyle(
+                          fontSize: 12, color: scheme.secondary),
+                    ),
+                  Expanded(
+                    child: Text(
+                      _formatDate(entry.updatedAt),
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
                   ),
+                  if (isOwned && entry.sharedWith.isNotEmpty)
+                    Row(
+                      children: [
+                        Icon(Icons.people_outline,
+                            size: 14, color: scheme.secondary),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${entry.sharedWith.length}',
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.secondary),
+                        ),
+                      ],
+                    ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -164,9 +299,7 @@ class _EntryCard extends StatelessWidget {
   String _formatDate(DateTime dt) {
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inDays == 0) {
-      return 'Today ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
-    }
+    if (diff.inDays == 0) return 'Today ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
     if (diff.inDays == 1) return 'Yesterday';
     return '${dt.day}/${dt.month}/${dt.year}';
   }

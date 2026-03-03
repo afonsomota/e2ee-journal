@@ -1,13 +1,19 @@
 # routers/users.py
 #
-# [Step 4] Public key distribution.
+# [Step4+] Public key distribution.
 #
-# This endpoint is the trust boundary.  A malicious server could return
-# a different public key than the one the user registered with.
-# Mitigations (not implemented here):
-#   - Key transparency log
-#   - Out-of-band fingerprint verification (like Signal safety numbers)
-#   - TOFU (Trust On First Use)
+# BLOG NOTE (Step 8 preview): This endpoint is the trust boundary.
+# A malicious server could return a different public key than the one the user
+# registered with.  The client would then encrypt the content key for the
+# attacker, who could decrypt it.
+#
+# Mitigations (not implemented here, covered in Step 8 blog post):
+#   • Key transparency log: every public key upload is appended to an
+#     append-only audit log.  Anyone can verify a key hasn't been swapped.
+#   • Out-of-band fingerprint verification: users compare key fingerprints
+#     via a side channel (e.g. QR code in person, Signal safety numbers).
+#   • TOFU (Trust On First Use): client remembers the first key seen for a
+#     username and warns if it changes.
 
 from fastapi import APIRouter, HTTPException, Depends
 from models.database import get_db
@@ -19,10 +25,14 @@ router = APIRouter()
 @router.get("/{username}/public-key")
 async def get_public_key(
     username: str,
-    user=Depends(current_user),
+    user=Depends(current_user),  # must be authenticated to look up keys
     db=Depends(get_db),
 ):
-    """Return a user's public key for the sharing flow."""
+    """
+    Return a user's public key.
+    Used by the sharing flow: Alice fetches Bob's public key before
+    re-encrypting the content key for him.
+    """
     async with db.execute(
         "SELECT username, public_key FROM users WHERE username = ?", (username,)
     ) as cur:
