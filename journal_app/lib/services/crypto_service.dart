@@ -5,6 +5,12 @@
 // This service evolves through the blog steps:
 //   [Step 3] Argon2id KDF + XSalsa20-Poly1305 secretbox (symmetric)
 //   [Step 4] X25519 keypair generation; private key encrypted before upload
+//   [Step 5] Per-entry content keys + sealed box (hybrid encryption)
+//
+// Primitives used (all via sodium_libs / libsodium):
+//   KDF       Argon2id          — password → 32-byte symmetric key
+//   SecretBox XSalsa20-Poly1305 — symmetric authenticated encryption
+//   SealBox   X25519 + XSalsa20 — anonymous asymmetric encryption
 
 import 'dart:convert';
 import 'dart:typed_data';
@@ -24,9 +30,9 @@ class CryptoService extends ChangeNotifier {
     return _sodiumInstance ??= await SodiumSumoInit.init();
   }
 
-  Uint8List? _derivedKey;   // [Step3] 32-byte Argon2 output
-  Uint8List? _privateKey;   // [Step4] X25519 private key (decrypted)
-  Uint8List? _publicKey;    // [Step4] X25519 public key
+  Uint8List? _derivedKey;   // [Step3]
+  Uint8List? _privateKey;   // [Step4]
+  Uint8List? _publicKey;    // [Step4]
 
   bool get hasKeys => _privateKey != null && _publicKey != null;
 
@@ -106,9 +112,6 @@ class CryptoService extends ChangeNotifier {
   }
 
   // ── Step 4 ─────────────────────────────────────────────────────────────────
-  // Generate an X25519 keypair.  The private key is immediately encrypted with
-  // the derived key and the ciphertext is what gets uploaded to the server.
-  // The plaintext private key is kept only in memory.
 
   Future<({String publicKey, String encryptedPrivateKey})>
       generateAndStoreKeypair() async {
@@ -144,6 +147,75 @@ class CryptoService extends ChangeNotifier {
     _publicKey = _fromBase64(publicKeyB64);
     await _secureStorage.write(key: _kPublicKey, value: publicKeyB64);
     notifyListeners();
+  }
+
+  // ── Step 5 ─────────────────────────────────────────────────────────────────
+  // Per-entry content key: a random 32-byte key encrypts the body (secretbox),
+  // then the content key itself is encrypted with the author's public key
+  // (seal box).  This is the hybrid pattern used by iMessage, PGP, and TLS.
+
+  Future<Uint8List> generateContentKey() async {
+    final sodium = await _getSodium();
+    return sodium.randombytes.buf(sodium.crypto.secretBox.keyBytes);
+  }
+
+  Future<String> encryptWithContentKey(
+      String plaintext, Uint8List contentKey) async {
+    final sodium = await _getSodium();
+    final nonce = sodium.randombytes.buf(sodium.crypto.secretBox.nonceBytes);
+    final ct = await _withSecureKey(contentKey, (key) async {
+      return sodium.crypto.secretBox.easy(
+        message: Uint8List.fromList(utf8.encode(plaintext)),
+        nonce: nonce,
+        key: key,
+      );
+    });
+    final combined = Uint8List(nonce.length + ct.length)
+      ..setAll(0, nonce)
+      ..setAll(nonce.length, ct);
+    return _toBase64(combined);
+  }
+
+  Future<String> decryptWithContentKey(
+      String blob, Uint8List contentKey) async {
+    final sodium = await _getSodium();
+    final combined = _fromBase64(blob);
+    final nonceLen = sodium.crypto.secretBox.nonceBytes;
+    final nonce = combined.sublist(0, nonceLen);
+    final ct = combined.sublist(nonceLen);
+    final pt = await _withSecureKey(contentKey, (key) async {
+      return sodium.crypto.secretBox.openEasy(
+        cipherText: ct,
+        nonce: nonce,
+        key: key,
+      );
+    });
+    return utf8.decode(pt);
+  }
+
+  // crypto_box_seal: anonymous asymmetric encryption (no sender identity).
+  Future<String> encryptContentKeyForRecipient(
+      Uint8List contentKey, String recipientPublicKeyB64) async {
+    final sodium = await _getSodium();
+    final recipientPk = _fromBase64(recipientPublicKeyB64);
+    final sealed = sodium.crypto.box.seal(
+      message: contentKey,
+      publicKey: recipientPk,
+    );
+    return _toBase64(sealed);
+  }
+
+  Future<Uint8List> decryptContentKey(String encryptedContentKeyB64) async {
+    assert(_privateKey != null && _publicKey != null, 'Keys not loaded');
+    final sodium = await _getSodium();
+    final sealed = _fromBase64(encryptedContentKeyB64);
+    return _withSecureKey(_privateKey!, (sk) async {
+      return sodium.crypto.box.sealOpen(
+        cipherText: sealed,
+        publicKey: _publicKey!,
+        secretKey: sk,
+      );
+    });
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────

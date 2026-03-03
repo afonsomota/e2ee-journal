@@ -5,11 +5,13 @@ class JournalEntry {
   final DateTime createdAt;
   final DateTime updatedAt;
 
-  // Raw content.  Used only in Steps 1 and 2; set by decryption in Step 3+.
   final String content;
 
   // [Step 3+] Base64-encoded ciphertext of the journal entry body.
   final String? encryptedBlob;
+
+  // [Step 5+] Content key encrypted for the author (sealed box).
+  final String? encryptedContentKey;
 
   const JournalEntry({
     required this.id,
@@ -19,11 +21,13 @@ class JournalEntry {
     required this.updatedAt,
     required this.content,
     this.encryptedBlob,
+    this.encryptedContentKey,
   });
 
   JournalEntry copyWith({
     String? content,
     String? encryptedBlob,
+    String? encryptedContentKey,
   }) {
     return JournalEntry(
       id: id,
@@ -33,6 +37,7 @@ class JournalEntry {
       updatedAt: updatedAt,
       content: content ?? this.content,
       encryptedBlob: encryptedBlob ?? this.encryptedBlob,
+      encryptedContentKey: encryptedContentKey ?? this.encryptedContentKey,
     );
   }
 
@@ -45,6 +50,7 @@ class JournalEntry {
       updatedAt: DateTime.parse(json['updated_at'] as String),
       content: json['content'] as String? ?? '',
       encryptedBlob: json['encrypted_blob'] as String?,
+      encryptedContentKey: json['encrypted_content_key'] as String?,
     );
   }
 
@@ -57,6 +63,8 @@ class JournalEntry {
       'updated_at': updatedAt.toIso8601String(),
       'content': content,
       if (encryptedBlob != null) 'encrypted_blob': encryptedBlob,
+      if (encryptedContentKey != null)
+        'encrypted_content_key': encryptedContentKey,
     };
   }
 }

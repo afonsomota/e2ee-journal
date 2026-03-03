@@ -1,11 +1,12 @@
 // services/journal_service.dart
 //
-// Orchestrates journal CRUD.  From Step 3 onward, all content is encrypted
-// on the client before being sent to the server.
+// Orchestrates journal CRUD.  This is where the encryption steps are most
+// visible: the same "create entry" action changes significantly between steps.
 //
 // API contract:
 //   Step 1  POST /entries { content: "plaintext" }
 //   Step 3  POST /entries { encrypted_blob: "..." }
+//   Step 5  POST /entries { encrypted_blob: "...", encrypted_content_key: "..." }
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
@@ -62,12 +63,9 @@ class JournalService extends ChangeNotifier {
     }
   }
 
-  // ── Step 3: Create entry (client-side symmetric encryption) ────────────────
-  //
-  // The server receives an encrypted_blob and no content field.
-  // A database dump from this point onward reveals only ciphertext.
+  // ── Step 3: Create entry (symmetric) — preserved for reference ─────────────
 
-  Future<void> createEntry(String content) async {
+  Future<void> createEntryStep3(String content) async {
     assert(_crypto != null);
     _setLoading(true);
     try {
@@ -78,6 +76,46 @@ class JournalService extends ChangeNotifier {
       });
 
       final entry = JournalEntry.fromJson(resp.data).copyWith(content: content);
+      _entries.insert(0, entry);
+      notifyListeners();
+    } on DioException catch (e) {
+      _error = _extractError(e, 'Failed to create entry');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  // ── Step 5: Create entry (hybrid encryption) ──────────────────────────────
+  //
+  // Flow:
+  //   1. Generate a random content key (32 bytes).
+  //   2. Encrypt the entry body with the content key (secretbox).
+  //   3. Encrypt the content key with our own public key (seal box).
+  //   4. Upload both blobs.  The server has no key to either.
+
+  Future<void> createEntry(String content) async {
+    assert(_crypto != null && _auth?.currentUser != null);
+    _setLoading(true);
+    try {
+      final contentKey = await _crypto!.generateContentKey();
+
+      final encryptedBlob =
+          await _crypto!.encryptWithContentKey(content, contentKey);
+
+      final myPublicKey = _auth!.currentUser!.publicKey;
+      if (myPublicKey == null) {
+        throw Exception('Public key not set — are you on Step 5+?');
+      }
+      final encryptedContentKey =
+          await _crypto!.encryptContentKeyForRecipient(contentKey, myPublicKey);
+
+      final resp = await _dio.post('/entries', data: {
+        'encrypted_blob': encryptedBlob,
+        'encrypted_content_key': encryptedContentKey,
+      });
+
+      final entry =
+          JournalEntry.fromJson(resp.data).copyWith(content: content);
       _entries.insert(0, entry);
       notifyListeners();
     } on DioException catch (e) {
@@ -120,21 +158,41 @@ class JournalService extends ChangeNotifier {
 
   Future<JournalEntry> _decryptEntry(JournalEntry entry) async {
     final blob = entry.encryptedBlob;
-    if (blob == null) return entry; // Step 1: plaintext, nothing to do.
+    if (blob == null) return entry; // Step 1: plaintext.
 
-    final content = await _crypto!.symmetricDecrypt(blob);
-    return entry.copyWith(content: content);
+    if (entry.encryptedContentKey != null && _crypto!.hasKeys) {
+      // Step 5: hybrid — decrypt content key first, then body.
+      final contentKey =
+          await _crypto!.decryptContentKey(entry.encryptedContentKey!);
+      final content = await _crypto!.decryptWithContentKey(blob, contentKey);
+      return entry.copyWith(content: content);
+    } else if (!_crypto!.hasKeys) {
+      // Step 3: symmetric-only path (no keypair yet).
+      final content = await _crypto!.symmetricDecrypt(blob);
+      return entry.copyWith(content: content);
+    }
+
+    return entry.copyWith(content: '[Key unavailable]');
   }
 
   // ── Update & delete ───────────────────────────────────────────────────────
 
   Future<void> updateEntry(String entryId, String newContent) async {
+    assert(_crypto != null);
     _setLoading(true);
     try {
       final entry = _entries.firstWhere((e) => e.id == entryId);
       Map<String, dynamic> payload;
 
-      if (entry.encryptedBlob != null && _crypto != null) {
+      if (entry.encryptedContentKey != null && _crypto!.hasKeys) {
+        // Step 5+: decrypt existing content key and re-encrypt new content.
+        final contentKey =
+            await _crypto!.decryptContentKey(entry.encryptedContentKey!);
+        final newBlob =
+            await _crypto!.encryptWithContentKey(newContent, contentKey);
+        payload = {'encrypted_blob': newBlob};
+      } else if (entry.encryptedBlob != null) {
+        // Step 3: symmetric encryption.
         final newBlob = await _crypto!.symmetricEncrypt(newContent);
         payload = {'encrypted_blob': newBlob};
       } else {

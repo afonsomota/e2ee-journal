@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/journal_entry.dart';
 import '../services/journal_service.dart';
+import '../services/crypto_service.dart';
 
 class EntryEditorScreen extends StatefulWidget {
   final JournalEntry? entry;
@@ -66,6 +67,8 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final crypto = context.watch<CryptoService>();
+
     return Scaffold(
       appBar: AppBar(
         title: Text(_isEditing ? 'Edit Entry' : 'New Entry'),
@@ -89,25 +92,7 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
       ),
       body: Column(
         children: [
-          // Crypto status banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-            color: Colors.blue.shade50,
-            child: Row(
-              children: [
-                Icon(Icons.lock_outline, size: 14, color: Colors.blue.shade700),
-                const SizedBox(width: 8),
-                Text(
-                  'Symmetric E2EE — encrypted before leaving this device',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ),
+          _CryptoBanner(hasKeys: crypto.hasKeys),
 
           Expanded(
             child: Padding(
@@ -126,6 +111,53 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
                 autofocus: true,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CryptoBanner extends StatelessWidget {
+  final bool hasKeys;
+  const _CryptoBanner({required this.hasKeys});
+
+  @override
+  Widget build(BuildContext context) {
+    if (hasKeys) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        color: Colors.green.shade50,
+        child: Row(
+          children: [
+            Icon(Icons.lock, size: 14, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            Text(
+              'Hybrid E2EE — encrypted before leaving this device',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.green.shade700,
+                  fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      color: Colors.blue.shade50,
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, size: 14, color: Colors.blue.shade700),
+          const SizedBox(width: 8),
+          Text(
+            'Symmetric E2EE — encrypted before leaving this device',
+            style: TextStyle(
+                fontSize: 12,
+                color: Colors.blue.shade700,
+                fontWeight: FontWeight.w500),
           ),
         ],
       ),

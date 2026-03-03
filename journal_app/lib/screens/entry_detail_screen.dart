@@ -50,7 +50,9 @@ class EntryDetailScreen extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   entry.encryptedBlob != null
-                      ? 'Symmetric E2EE (Step 3)'
+                      ? entry.encryptedContentKey != null
+                          ? 'Hybrid E2EE (Step 5+)'
+                          : 'Symmetric E2EE (Step 3)'
                       : 'No encryption (Step 1)',
                   style: TextStyle(
                       fontSize: 12,

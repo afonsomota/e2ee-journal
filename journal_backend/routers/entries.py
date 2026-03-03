@@ -1,7 +1,7 @@
 # routers/entries.py
 #
-# From Step 3 onward, the server is essentially a dumb blob store for
-# encrypted data it cannot read.
+# From Step 3 onward the server is essentially a dumb blob store.
+# [Step 5] adds encrypted_content_key — the server stores it but cannot read it.
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -16,15 +16,28 @@ router = APIRouter()
 
 
 class CreateEntryRequest(BaseModel):
-    # [Step 1/2] Plaintext content.
     content: Optional[str] = None
-    # [Step 3] Encrypted blob: base64(nonce || ciphertext).
     encrypted_blob: Optional[str] = None
+    # [Step 5] Content key encrypted for the author.
+    encrypted_content_key: Optional[str] = None
 
 
 class UpdateEntryRequest(BaseModel):
     content: Optional[str] = None
     encrypted_blob: Optional[str] = None
+
+
+def _serialize_entry(row: dict) -> dict:
+    return {
+        "id": row["id"],
+        "author_id": row["author_id"],
+        "author_username": row["author_username"],
+        "content": row["content"] or "",
+        "encrypted_blob": row["encrypted_blob"],
+        "encrypted_content_key": row["encrypted_content_key"],
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
 
 
 @router.post("")
@@ -43,9 +56,18 @@ async def create_entry(
 
     await db.execute(
         """INSERT INTO entries
-           (id, author_id, content, encrypted_blob, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (entry_id, user["id"], req.content, req.encrypted_blob, now, now),
+           (id, author_id, content, encrypted_blob, encrypted_content_key,
+            created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            entry_id,
+            user["id"],
+            req.content,
+            req.encrypted_blob,
+            req.encrypted_content_key,
+            now,
+            now,
+        ),
     )
     await db.commit()
 
@@ -55,6 +77,7 @@ async def create_entry(
         "author_username": user["username"],
         "content": req.content or "",
         "encrypted_blob": req.encrypted_blob,
+        "encrypted_content_key": req.encrypted_content_key,
         "created_at": now,
         "updated_at": now,
     }
@@ -72,18 +95,7 @@ async def list_entries(user=Depends(current_user), db=Depends(get_db)):
     ) as cur:
         rows = [dict(r) for r in await cur.fetchall()]
 
-    return [
-        {
-            "id": row["id"],
-            "author_id": row["author_id"],
-            "author_username": row["author_username"],
-            "content": row["content"] or "",
-            "encrypted_blob": row["encrypted_blob"],
-            "created_at": row["created_at"],
-            "updated_at": row["updated_at"],
-        }
-        for row in rows
-    ]
+    return [_serialize_entry(row) for row in rows]
 
 
 @router.put("/{entry_id}")
