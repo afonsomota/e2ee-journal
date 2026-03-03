@@ -1,8 +1,7 @@
 # models/database.py
 #
-# [Step 2] Server-side encryption at rest — see previous commit.
-# [Step 3] Client-side encryption changes the schema: entries now have an
-#          encrypted_blob column for ciphertext the server cannot read.
+# [Step 4] Users table gains public_key and encrypted_private_key columns.
+# The server stores the encrypted private key blob but cannot decrypt it.
 
 import aiosqlite
 import os
@@ -21,18 +20,21 @@ async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.executescript("""
             CREATE TABLE IF NOT EXISTS users (
-                id            TEXT PRIMARY KEY,
-                username      TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
-                created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+                id                    TEXT PRIMARY KEY,
+                username              TEXT UNIQUE NOT NULL,
+                password_hash         TEXT NOT NULL,
+                -- [Step 4] Public key stored openly; server can distribute it.
+                public_key            TEXT,
+                -- [Step 4] Private key encrypted with Argon2-derived key.
+                --         Server stores the blob but cannot decrypt it.
+                encrypted_private_key TEXT,
+                created_at            TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
             CREATE TABLE IF NOT EXISTS entries (
                 id             TEXT PRIMARY KEY,
                 author_id      TEXT NOT NULL REFERENCES users(id),
-                -- [Step 1/2] Plaintext content.
                 content        TEXT,
-                -- [Step 3] Encrypted body. Server cannot read this.
                 encrypted_blob TEXT,
                 created_at     TEXT NOT NULL DEFAULT (datetime('now')),
                 updated_at     TEXT NOT NULL DEFAULT (datetime('now'))

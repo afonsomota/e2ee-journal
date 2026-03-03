@@ -1,5 +1,8 @@
+# routers/auth.py
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
+from typing import Optional
 import uuid
 import bcrypt
 import jwt
@@ -18,6 +21,9 @@ JWT_EXPIRY_HOURS = 24 * 7
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)
     password: str = Field(..., min_length=8)
+    # [Step 4] Optional — only present from Step 4 onward.
+    public_key: Optional[str] = None
+    encrypted_private_key: Optional[str] = None
 
 
 class LoginRequest(BaseModel):
@@ -82,15 +88,28 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
     ).decode()
 
     await db.execute(
-        "INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)",
-        (user_id, req.username, password_hash),
+        """INSERT INTO users
+           (id, username, password_hash, public_key, encrypted_private_key)
+           VALUES (?, ?, ?, ?, ?)""",
+        (
+            user_id,
+            req.username,
+            password_hash,
+            req.public_key,
+            req.encrypted_private_key,
+        ),
     )
     await db.commit()
 
     token = _create_token(user_id, req.username)
     return {
         "access_token": token,
-        "user": {"id": user_id, "username": req.username},
+        "user": {
+            "id": user_id,
+            "username": req.username,
+            "public_key": req.public_key,
+            "encrypted_private_key": req.encrypted_private_key,
+        },
     }
 
 
@@ -109,5 +128,11 @@ async def login(req: LoginRequest, db=Depends(get_db)):
     token = _create_token(row["id"], row["username"])
     return {
         "access_token": token,
-        "user": {"id": row["id"], "username": row["username"]},
+        # [Step 4] Return encrypted private key so client can decrypt it locally.
+        "user": {
+            "id": row["id"],
+            "username": row["username"],
+            "public_key": row["public_key"],
+            "encrypted_private_key": row["encrypted_private_key"],
+        },
     }

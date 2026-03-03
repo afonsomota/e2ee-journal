@@ -1,12 +1,10 @@
 // services/auth_service.dart
 //
 // Handles registration, login, and session state.
-// From Step 3 onward, the password never leaves this device in plaintext —
-// it is fed directly into CryptoService.deriveKeyFromPassword().
 //
-// The server never sees the encryption key — only the auth token it issues.
-// The password leaves the device once for auth, but key derivation happens
-// locally before that call.
+// [Step 3] Password derives local encryption key via CryptoService.
+// [Step 4] Registration generates an X25519 keypair; private key is encrypted
+//          with the derived key before upload.  Login decrypts it back.
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
@@ -65,7 +63,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ── Step 3: Registration with client-side key derivation ───────────────────
+  // ── Step 3+ Registration (with key derivation and keypair) ─────────────────
 
   Future<bool> register(
     String username,
@@ -75,12 +73,17 @@ class AuthService extends ChangeNotifier {
     try {
       _error = null;
 
-      // Derive local encryption key from password BEFORE any network call.
+      // [Step 3] Derive local encryption key from password.
       await crypto.deriveKeyFromPassword(password, username);
+
+      // [Step 4] Generate keypair; private key is encrypted with derived key.
+      final keys = await crypto.generateAndStoreKeypair();
 
       final resp = await _dio.post('/auth/register', data: {
         'username': username,
         'password': password,
+        'public_key': keys.publicKey,
+        'encrypted_private_key': keys.encryptedPrivateKey,
       });
 
       return _handleAuthResponse(resp.data);
@@ -91,7 +94,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // ── Step 3: Login with key derivation ──────────────────────────────────────
+  // ── Step 3+ Login ──────────────────────────────────────────────────────────
 
   Future<bool> login(
     String username,
@@ -101,7 +104,7 @@ class AuthService extends ChangeNotifier {
     try {
       _error = null;
 
-      // Derive key locally first.
+      // [Step 3] Derive key locally first.
       await crypto.deriveKeyFromPassword(password, username);
 
       final resp = await _dio.post('/auth/login', data: {
@@ -109,7 +112,17 @@ class AuthService extends ChangeNotifier {
         'password': password,
       });
 
-      return _handleAuthResponse(resp.data);
+      if (!_handleAuthResponse(resp.data)) return false;
+
+      // [Step 4] Server returns the encrypted private key; decrypt locally.
+      final userData = resp.data['user'] as Map<String, dynamic>;
+      if (userData['encrypted_private_key'] != null) {
+        await crypto.unlockPrivateKey(
+            userData['encrypted_private_key'] as String);
+        await crypto.loadPublicKey(userData['public_key'] as String);
+      }
+
+      return true;
     } on DioException catch (e) {
       _error = e.response?.data?['detail'] ?? 'Login failed';
       notifyListeners();

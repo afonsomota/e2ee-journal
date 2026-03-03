@@ -30,17 +30,23 @@ class JournalListScreen extends StatelessWidget {
           ],
         ),
         actions: [
-          // E2EE status badge
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Chip(
-              avatar: Icon(Icons.lock, size: 14, color: Colors.green.shade300),
-              label: const Text(
-                'Encrypted',
-                style: TextStyle(fontSize: 11, color: Colors.white),
+          // E2EE status badge — reflects whether keypair is loaded
+          Consumer<CryptoService>(
+            builder: (_, crypto, __) => Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Chip(
+                avatar: Icon(
+                  crypto.hasKeys ? Icons.lock : Icons.lock_open,
+                  size: 14,
+                  color: crypto.hasKeys ? Colors.green.shade300 : Colors.orange,
+                ),
+                label: Text(
+                  crypto.hasKeys ? 'E2EE' : 'Encrypted',
+                  style: const TextStyle(fontSize: 11, color: Colors.white),
+                ),
+                backgroundColor: scheme.primary.withValues(alpha: 0.7),
+                padding: EdgeInsets.zero,
               ),
-              backgroundColor: scheme.primary.withValues(alpha: 0.7),
-              padding: EdgeInsets.zero,
             ),
           ),
           IconButton(

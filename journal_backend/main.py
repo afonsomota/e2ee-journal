@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import auth, entries
+from routers import auth, entries, users
 from models.database import init_db
 
 app = FastAPI(
-    title="Journal API",
-    description="Backend for the Journal app",
+    title="E2EE Journal API",
+    description="Backend for the End-to-End Encrypted Journal blog series",
     version="1.0.0",
 )
 
@@ -20,6 +20,7 @@ app.add_middleware(
 
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
+app.include_router(users.router, prefix="/users", tags=["users"])
 
 
 @app.on_event("startup")
