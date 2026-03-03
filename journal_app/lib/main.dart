@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import 'services/auth_service.dart';
 import 'services/journal_service.dart';
+import 'services/crypto_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/journal_list_screen.dart';
 
@@ -19,14 +20,15 @@ class JournalApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthService()),
-        ChangeNotifierProxyProvider<AuthService, JournalService>(
+        ChangeNotifierProvider(create: (_) => CryptoService()),
+        ChangeNotifierProxyProvider2<AuthService, CryptoService, JournalService>(
           create: (_) => JournalService(),
-          update: (_, auth, journal) =>
-              (journal ?? JournalService())..update(auth),
+          update: (_, auth, crypto, journal) =>
+              (journal ?? JournalService())..update(auth, crypto),
         ),
       ],
       child: MaterialApp(
-        title: 'Journal',
+        title: 'E2EE Journal',
         debugShowCheckedModeBanner: false,
         theme: _buildTheme(),
         home: const _AppRoot(),

@@ -14,7 +14,7 @@ class EntryDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Entry'),
+        title: const Text('My Entry'),
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
@@ -38,9 +38,31 @@ class EntryDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _formatDate(entry.updatedAt),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            Row(
+              children: [
+                Icon(
+                  entry.encryptedBlob != null ? Icons.lock : Icons.lock_open,
+                  size: 16,
+                  color: entry.encryptedBlob != null
+                      ? Colors.green.shade600
+                      : Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  entry.encryptedBlob != null
+                      ? 'Symmetric E2EE (Step 3)'
+                      : 'No encryption (Step 1)',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey.shade600,
+                      fontStyle: FontStyle.italic),
+                ),
+                const Spacer(),
+                Text(
+                  _formatDate(entry.updatedAt),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             const Divider(),

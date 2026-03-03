@@ -1,5 +1,11 @@
+# routers/entries.py
+#
+# From Step 3 onward, the server is essentially a dumb blob store for
+# encrypted data it cannot read.
+
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
+from typing import Optional
 import uuid
 from datetime import datetime
 
@@ -10,11 +16,15 @@ router = APIRouter()
 
 
 class CreateEntryRequest(BaseModel):
-    content: str
+    # [Step 1/2] Plaintext content.
+    content: Optional[str] = None
+    # [Step 3] Encrypted blob: base64(nonce || ciphertext).
+    encrypted_blob: Optional[str] = None
 
 
 class UpdateEntryRequest(BaseModel):
-    content: str
+    content: Optional[str] = None
+    encrypted_blob: Optional[str] = None
 
 
 @router.post("")
@@ -23,13 +33,19 @@ async def create_entry(
     user=Depends(current_user),
     db=Depends(get_db),
 ):
+    if not req.content and not req.encrypted_blob:
+        raise HTTPException(
+            status_code=400, detail="Content or encrypted_blob required"
+        )
+
     entry_id = str(uuid.uuid4())
     now = datetime.utcnow().isoformat()
 
     await db.execute(
-        """INSERT INTO entries (id, author_id, content, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?)""",
-        (entry_id, user["id"], req.content, now, now),
+        """INSERT INTO entries
+           (id, author_id, content, encrypted_blob, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (entry_id, user["id"], req.content, req.encrypted_blob, now, now),
     )
     await db.commit()
 
@@ -37,7 +53,8 @@ async def create_entry(
         "id": entry_id,
         "author_id": user["id"],
         "author_username": user["username"],
-        "content": req.content,
+        "content": req.content or "",
+        "encrypted_blob": req.encrypted_blob,
         "created_at": now,
         "updated_at": now,
     }
@@ -61,6 +78,7 @@ async def list_entries(user=Depends(current_user), db=Depends(get_db)):
             "author_id": row["author_id"],
             "author_username": row["author_username"],
             "content": row["content"] or "",
+            "encrypted_blob": row["encrypted_blob"],
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -87,8 +105,12 @@ async def update_entry(
 
     now = datetime.utcnow().isoformat()
     await db.execute(
-        "UPDATE entries SET content = ?, updated_at = ? WHERE id = ?",
-        (req.content, now, entry_id),
+        """UPDATE entries
+           SET content = COALESCE(?, content),
+               encrypted_blob = COALESCE(?, encrypted_blob),
+               updated_at = ?
+           WHERE id = ?""",
+        (req.content, req.encrypted_blob, now, entry_id),
     )
     await db.commit()
     return {"ok": True}

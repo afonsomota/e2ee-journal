@@ -87,21 +87,47 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
             ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: TextField(
-          controller: _ctrl,
-          maxLines: null,
-          expands: true,
-          decoration: const InputDecoration(
-            hintText: 'Write your thoughts…',
-            border: InputBorder.none,
-            focusedBorder: InputBorder.none,
+      body: Column(
+        children: [
+          // Crypto status banner
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            color: Colors.blue.shade50,
+            child: Row(
+              children: [
+                Icon(Icons.lock_outline, size: 14, color: Colors.blue.shade700),
+                const SizedBox(width: 8),
+                Text(
+                  'Symmetric E2EE — encrypted before leaving this device',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue.shade700,
+                      fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
           ),
-          style: const TextStyle(fontSize: 17, height: 1.6),
-          textAlignVertical: TextAlignVertical.top,
-          autofocus: true,
-        ),
+
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: TextField(
+                controller: _ctrl,
+                maxLines: null,
+                expands: true,
+                decoration: const InputDecoration(
+                  hintText: 'Write your thoughts…',
+                  border: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                ),
+                style: const TextStyle(fontSize: 17, height: 1.6),
+                textAlignVertical: TextAlignVertical.top,
+                autofocus: true,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

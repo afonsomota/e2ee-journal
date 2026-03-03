@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
+import '../services/crypto_service.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -54,10 +55,11 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() => _loading = true);
 
     final auth = context.read<AuthService>();
+    final crypto = context.read<CryptoService>();
 
     final ok = isRegister
-        ? await auth.register(username, password)
-        : await auth.login(username, password);
+        ? await auth.register(username, password, crypto)
+        : await auth.login(username, password, crypto);
 
     if (mounted) {
       setState(() => _loading = false);
@@ -88,16 +90,25 @@ class _AuthScreenState extends State<AuthScreen>
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.book_outlined,
+                  Icon(Icons.lock_outline,
                       size: 56, color: scheme.primary),
                   const SizedBox(height: 12),
                   Text(
-                    'Journal',
+                    'Private Journal',
                     textAlign: TextAlign.center,
                     style: Theme.of(context)
                         .textTheme
                         .headlineMedium
                         ?.copyWith(color: scheme.primary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'End-to-end encrypted',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: scheme.secondary),
                   ),
                   const SizedBox(height: 40),
 
@@ -138,8 +149,42 @@ class _AuthScreenState extends State<AuthScreen>
                       _submit(isRegister);
                     },
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 12),
 
+                  // KDF warning — shown on register tab
+                  AnimatedBuilder(
+                    animation: _tabs,
+                    builder: (_, __) {
+                      if (_tabs.index != 1) return const SizedBox.shrink();
+                      return Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade50,
+                          border:
+                              Border.all(color: Colors.amber.shade300),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.info_outline,
+                                color: Colors.amber.shade700, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Your password derives the encryption key. '
+                                'If you forget it, your entries cannot be recovered.',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.amber.shade900),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 24),
                   AnimatedBuilder(
                     animation: _tabs,
                     builder: (_, __) {
@@ -148,11 +193,19 @@ class _AuthScreenState extends State<AuthScreen>
                           ? const Center(child: CircularProgressIndicator())
                           : ElevatedButton(
                               onPressed: () => _submit(isRegister),
-                              child: Text(
-                                  isRegister ? 'Create Account' : 'Sign In'),
+                              child: Text(isRegister ? 'Create Account' : 'Sign In'),
                             );
                     },
                   ),
+
+                  if (_loading) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      'Deriving encryption key… (this takes a moment)',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
                 ],
               ),
             ),

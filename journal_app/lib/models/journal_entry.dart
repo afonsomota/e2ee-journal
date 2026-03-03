@@ -4,7 +4,12 @@ class JournalEntry {
   final String authorUsername;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  // Raw content.  Used only in Steps 1 and 2; set by decryption in Step 3+.
   final String content;
+
+  // [Step 3+] Base64-encoded ciphertext of the journal entry body.
+  final String? encryptedBlob;
 
   const JournalEntry({
     required this.id,
@@ -13,9 +18,13 @@ class JournalEntry {
     required this.createdAt,
     required this.updatedAt,
     required this.content,
+    this.encryptedBlob,
   });
 
-  JournalEntry copyWith({String? content}) {
+  JournalEntry copyWith({
+    String? content,
+    String? encryptedBlob,
+  }) {
     return JournalEntry(
       id: id,
       authorId: authorId,
@@ -23,6 +32,7 @@ class JournalEntry {
       createdAt: createdAt,
       updatedAt: updatedAt,
       content: content ?? this.content,
+      encryptedBlob: encryptedBlob ?? this.encryptedBlob,
     );
   }
 
@@ -34,15 +44,19 @@ class JournalEntry {
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
       content: json['content'] as String? ?? '',
+      encryptedBlob: json['encrypted_blob'] as String?,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'author_id': authorId,
-        'author_username': authorUsername,
-        'created_at': createdAt.toIso8601String(),
-        'updated_at': updatedAt.toIso8601String(),
-        'content': content,
-      };
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'author_id': authorId,
+      'author_username': authorUsername,
+      'created_at': createdAt.toIso8601String(),
+      'updated_at': updatedAt.toIso8601String(),
+      'content': content,
+      if (encryptedBlob != null) 'encrypted_blob': encryptedBlob,
+    };
+  }
 }

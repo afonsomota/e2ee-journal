@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
 import '../services/journal_service.dart';
+import '../services/crypto_service.dart';
 import '../models/journal_entry.dart';
 import 'entry_editor_screen.dart';
 import 'entry_detail_screen.dart';
@@ -21,7 +22,7 @@ class JournalListScreen extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Journal'),
+            const Text('Private Journal'),
             Text(
               auth.currentUser?.username ?? '',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w300),
@@ -29,6 +30,19 @@ class JournalListScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          // E2EE status badge
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Chip(
+              avatar: Icon(Icons.lock, size: 14, color: Colors.green.shade300),
+              label: const Text(
+                'Encrypted',
+                style: TextStyle(fontSize: 11, color: Colors.white),
+              ),
+              backgroundColor: scheme.primary.withValues(alpha: 0.7),
+              padding: EdgeInsets.zero,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => context.read<JournalService>().fetchAll(),
@@ -36,7 +50,9 @@ class JournalListScreen extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => context.read<AuthService>().logout(),
+            onPressed: () {
+              context.read<AuthService>().logout(context.read<CryptoService>());
+            },
             tooltip: 'Logout',
           ),
         ],
@@ -109,9 +125,21 @@ class _EntryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                _formatDate(entry.updatedAt),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              Row(
+                children: [
+                  Icon(
+                    entry.encryptedBlob != null ? Icons.lock : Icons.lock_open,
+                    size: 14,
+                    color: entry.encryptedBlob != null
+                        ? Colors.green.shade600
+                        : Colors.orange,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _formatDate(entry.updatedAt),
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
               ),
               const SizedBox(height: 8),
               Text(

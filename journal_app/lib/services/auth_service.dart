@@ -1,8 +1,19 @@
+// services/auth_service.dart
+//
+// Handles registration, login, and session state.
+// From Step 3 onward, the password never leaves this device in plaintext —
+// it is fed directly into CryptoService.deriveKeyFromPassword().
+//
+// The server never sees the encryption key — only the auth token it issues.
+// The password leaves the device once for auth, but key derivation happens
+// locally before that call.
+
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
+import 'crypto_service.dart';
 
 const _kToken = 'auth_token';
 const _kUserId = 'auth_user_id';
@@ -24,7 +35,9 @@ class AuthService extends ChangeNotifier {
     connectTimeout: const Duration(seconds: 10),
   ));
 
-  Future<bool> register(String username, String password) async {
+  // ── Step 1 (preserved for reference) ───────────────────────────────────────
+
+  Future<bool> registerStep1(String username, String password) async {
     try {
       final resp = await _dio.post('/auth/register', data: {
         'username': username,
@@ -38,7 +51,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String username, String password) async {
+  Future<bool> loginStep1(String username, String password) async {
     try {
       final resp = await _dio.post('/auth/login', data: {
         'username': username,
@@ -51,6 +64,60 @@ class AuthService extends ChangeNotifier {
       return false;
     }
   }
+
+  // ── Step 3: Registration with client-side key derivation ───────────────────
+
+  Future<bool> register(
+    String username,
+    String password,
+    CryptoService crypto,
+  ) async {
+    try {
+      _error = null;
+
+      // Derive local encryption key from password BEFORE any network call.
+      await crypto.deriveKeyFromPassword(password, username);
+
+      final resp = await _dio.post('/auth/register', data: {
+        'username': username,
+        'password': password,
+      });
+
+      return _handleAuthResponse(resp.data);
+    } on DioException catch (e) {
+      _error = e.response?.data?['detail'] ?? 'Registration failed';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Step 3: Login with key derivation ──────────────────────────────────────
+
+  Future<bool> login(
+    String username,
+    String password,
+    CryptoService crypto,
+  ) async {
+    try {
+      _error = null;
+
+      // Derive key locally first.
+      await crypto.deriveKeyFromPassword(password, username);
+
+      final resp = await _dio.post('/auth/login', data: {
+        'username': username,
+        'password': password,
+      });
+
+      return _handleAuthResponse(resp.data);
+    } on DioException catch (e) {
+      _error = e.response?.data?['detail'] ?? 'Login failed';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ── Shared ─────────────────────────────────────────────────────────────────
 
   bool _handleAuthResponse(Map<String, dynamic> data) {
     _token = data['access_token'] as String?;
@@ -68,10 +135,11 @@ class AuthService extends ChangeNotifier {
     return true;
   }
 
-  Future<void> logout() async {
+  Future<void> logout(CryptoService crypto) async {
     _currentUser = null;
     _token = null;
     _isLoggedIn = false;
+    await crypto.clearKeys();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     notifyListeners();
@@ -86,7 +154,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> tryRestoreSession() async {
+  Future<bool> tryRestoreSession(CryptoService crypto) async {
     final prefs = await SharedPreferences.getInstance();
     _token = prefs.getString(_kToken);
     final userId = prefs.getString(_kUserId);
@@ -95,6 +163,13 @@ class AuthService extends ChangeNotifier {
     if (_token == null || userId == null || username == null) return false;
 
     _currentUser = User(id: userId, username: username);
+
+    final cryptoRestored = await crypto.tryRestoreSession();
+    if (!cryptoRestored) {
+      await logout(crypto);
+      return false;
+    }
+
     _isLoggedIn = true;
     notifyListeners();
     return true;
