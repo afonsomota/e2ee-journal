@@ -49,8 +49,6 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
     if (_isEditing) {
       await journal.updateEntry(widget.entry!.id, content);
     } else {
-      // createEntry uses Step 5 hybrid encryption.
-      // Swap with createEntryStep3 or createEntryStep1 for earlier steps.
       await journal.createEntry(content);
     }
 

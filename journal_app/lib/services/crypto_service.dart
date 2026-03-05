@@ -3,10 +3,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // THE CRYPTOGRAPHIC CORE
 //
-// This service evolves through the blog steps.  Each method is tagged with the
-// step that introduces it.  Prior-step methods are never removed so readers can
-// follow the full progression.
-//
 // Primitives used (all via sodium_libs / libsodium):
 //
 //   KDF       Argon2id          — password → 32-byte symmetric key
@@ -42,9 +38,9 @@ class CryptoService extends ChangeNotifier {
 
   // In-memory key material (cleared on logout).
   // These are raw bytes, never serialised to disk in plaintext.
-  Uint8List? _derivedKey;   // [Step3] 32-byte Argon2 output
-  Uint8List? _privateKey;   // [Step4] X25519 private key (decrypted)
-  Uint8List? _publicKey;    // [Step4] X25519 public key
+  Uint8List? _derivedKey;   // 32-byte Argon2 output
+  Uint8List? _privateKey;   // X25519 private key (decrypted)
+  Uint8List? _publicKey;    // X25519 public key
 
   bool get hasKeys => _privateKey != null && _publicKey != null;
 
@@ -65,13 +61,12 @@ class CryptoService extends ChangeNotifier {
     }
   }
 
-  // ── Step 3 ─────────────────────────────────────────────────────────────────
+  // ── Key derivation ─────────────────────────────────────────────────────────
   // Derive a 32-byte symmetric key from the user's password + a fixed salt.
   //
-  // BLOG NOTE: In production use a per-user random salt stored server-side.
-  // Here we derive the salt from the username so we can reproduce the key
-  // across devices without a round-trip during the KDF step.  This is a
-  // simplification for the blog — see Step 7 for proper multi-device handling.
+  // In production use a per-user random salt stored server-side.  Here we
+  // derive the salt from the username so we can reproduce the key across
+  // devices without a round-trip during the KDF step.
   //
   // Argon2id parameters: these are the libsodium "interactive" presets.
   // They are deliberately expensive to defeat brute-force offline attacks.
@@ -103,7 +98,7 @@ class CryptoService extends ChangeNotifier {
     return key;
   }
 
-  // [Step3] Encrypt arbitrary plaintext with the Argon2-derived key.
+  // Encrypt arbitrary plaintext with the Argon2-derived key.
   // Returns base64(nonce || ciphertext).
   Future<String> symmetricEncrypt(String plaintext) async {
     assert(_derivedKey != null, 'Call deriveKeyFromPassword first');
@@ -123,7 +118,7 @@ class CryptoService extends ChangeNotifier {
     return _toBase64(combined);
   }
 
-  // [Step3] Decrypt a blob produced by symmetricEncrypt.
+  // Decrypt a blob produced by symmetricEncrypt.
   Future<String> symmetricDecrypt(String blob) async {
     assert(_derivedKey != null, 'Call deriveKeyFromPassword first');
     final sodium = await _getSodium();
@@ -141,12 +136,10 @@ class CryptoService extends ChangeNotifier {
     return utf8.decode(pt);
   }
 
-  // ── Step 4 ─────────────────────────────────────────────────────────────────
+  // ── Keypair generation ─────────────────────────────────────────────────────
   // Generate an X25519 keypair.  The private key is immediately encrypted with
   // the derived key and the ciphertext is what gets uploaded to the server.
   // The plaintext private key is kept only in memory (_privateKey).
-  //
-  // BLOG NOTE: This mirrors what ProtonMail does at account creation.
   Future<({String publicKey, String encryptedPrivateKey})>
       generateAndStoreKeypair() async {
     assert(_derivedKey != null, 'Derive key from password first');
@@ -173,7 +166,7 @@ class CryptoService extends ChangeNotifier {
     );
   }
 
-  // [Step4] Load and decrypt the private key from server-provided ciphertext.
+  // Load and decrypt the private key from server-provided ciphertext.
   // Called on login: server returns the stored encryptedPrivateKey blob.
   Future<void> unlockPrivateKey(String encryptedPrivateKeyB64) async {
     assert(_derivedKey != null, 'Derive key from password first');
@@ -183,27 +176,24 @@ class CryptoService extends ChangeNotifier {
     notifyListeners();
   }
 
-  // [Step4] Load public key (from server or local cache).
+  // Load public key (from server or local cache).
   Future<void> loadPublicKey(String publicKeyB64) async {
     _publicKey = _fromBase64(publicKeyB64);
     await _secureStorage.write(key: _kPublicKey, value: publicKeyB64);
     notifyListeners();
   }
 
-  // ── Step 5 ─────────────────────────────────────────────────────────────────
+  // ── Content key encryption ─────────────────────────────────────────────────
   // Generate a random 32-byte content key (one per journal entry).
   // This is the symmetric key that actually encrypts the entry body.
-  //
-  // BLOG NOTE: We use a fresh random key per entry — not the derived key.
-  // This is important: if we always used the derived key, sharing would require
-  // giving the recipient the master key.  Per-entry keys mean sharing is
-  // surgical: you only share the key for one entry.
+  // We use a fresh random key per entry — not the derived key — so that
+  // sharing only requires giving the recipient the key for one entry.
   Future<Uint8List> generateContentKey() async {
     final sodium = await _getSodium();
     return sodium.randombytes.buf(sodium.crypto.secretBox.keyBytes);
   }
 
-  // [Step5] Encrypt entry body with a content key.
+  // Encrypt entry body with a content key.
   // Returns base64(nonce || ciphertext).
   Future<String> encryptWithContentKey(
       String plaintext, Uint8List contentKey) async {
@@ -222,7 +212,7 @@ class CryptoService extends ChangeNotifier {
     return _toBase64(combined);
   }
 
-  // [Step5] Decrypt entry body with a content key.
+  // Decrypt entry body with a content key.
   Future<String> decryptWithContentKey(
       String blob, Uint8List contentKey) async {
     final sodium = await _getSodium();
@@ -240,7 +230,7 @@ class CryptoService extends ChangeNotifier {
     return utf8.decode(pt);
   }
 
-  // [Step5] Encrypt a content key with a recipient's public key (seal box).
+  // Encrypt a content key with a recipient's public key (seal box).
   // crypto_box_seal is anonymous — it does not authenticate the sender, which
   // is what we want: the server can store it without learning who encrypted it.
   // Returns base64(sealed content key).
@@ -255,7 +245,7 @@ class CryptoService extends ChangeNotifier {
     return _toBase64(sealed);
   }
 
-  // [Step5] Decrypt an encrypted content key using our private key.
+  // Decrypt an encrypted content key using our private key.
   // Requires both the private key (to decrypt) and public key (for the box).
   Future<Uint8List> decryptContentKey(String encryptedContentKeyB64) async {
     assert(_privateKey != null && _publicKey != null, 'Keys not loaded');
@@ -270,31 +260,24 @@ class CryptoService extends ChangeNotifier {
     });
   }
 
-  // ── Step 6 ─────────────────────────────────────────────────────────────────
+  // ── Sharing ────────────────────────────────────────────────────────────────
   // Sharing an entry = encrypt the content key for the recipient's public key.
   // The entry body (encryptedBlob) never changes.  Only a new encrypted key
   // blob is created and sent to the server.
-  //
-  // BLOG NOTE: This is exactly how iMessage handles group messages and how
-  // Tresorit handles shared folders.  The data is encrypted once; access
-  // control is managed entirely through key distribution.
   Future<String> encryptContentKeyForSharing(
     Uint8List contentKey,
     String recipientPublicKeyB64,
   ) async {
-    // Identical to encryptContentKeyForRecipient — extracted for blog clarity.
     return encryptContentKeyForRecipient(contentKey, recipientPublicKeyB64);
   }
 
-  // [Step6] Full share flow: given an encrypted content key (for the author),
+  // Full share flow: given an encrypted content key (for the author),
   // decrypt it, then re-encrypt for the recipient.
   Future<String> reEncryptContentKeyForRecipient(
     String myEncryptedContentKeyB64,
     String recipientPublicKeyB64,
   ) async {
-    // 1. Decrypt with our private key.
     final contentKey = await decryptContentKey(myEncryptedContentKeyB64);
-    // 2. Re-encrypt for the recipient.
     return encryptContentKeyForSharing(contentKey, recipientPublicKeyB64);
   }
 

@@ -1,31 +1,6 @@
-# E2EE Journal — Blog Series Source Code
+# E2EE Journal
 
-A Flutter + FastAPI journal app that progressively adds end-to-end encryption
-across 6 steps. Each git tag is a complete, working app.
-
-## Steps
-
-| Tag | Title | What changes |
-|-----|-------|------|
-| `step-1` | No Encryption | Baseline — plaintext CRUD |
-| `step-2` | Server-Side Encryption at Rest | Conceptual — server encrypts on disk |
-| `step-3` | Client-Side Symmetric Encryption | Argon2id KDF + XSalsa20-Poly1305 secretbox |
-| `step-4` | Asymmetric Keypair Generation | X25519 keypair; private key encrypted locally |
-| `step-5` | Hybrid Encryption | Per-entry random content key + sealed box |
-| `step-6` | Sharing | Content key re-encrypted for each recipient |
-
-## Navigating the Code
-
-```bash
-# Check out any step
-git checkout step-3
-
-# See what changed between two steps
-git diff step-3..step-4
-
-# Return to the complete version
-git checkout complete
-```
+A Flutter + FastAPI journal app with end-to-end encryption and sharing.
 
 ## Running the App
 

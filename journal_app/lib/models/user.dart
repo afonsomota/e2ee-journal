@@ -1,19 +1,14 @@
 // models/user.dart
-//
-// [Step1-2] Only id and username are used.
-// [Step4+]  publicKey is added — the server holds this openly.
-//           encryptedPrivateKey is the private key encrypted with the
-//           password-derived key; server stores it but cannot read it.
 
 class User {
   final String id;
   final String username;
 
-  // [Step4+] Base64-encoded X25519 public key.
+  // Base64-encoded X25519 public key.
   // Stored on and distributed by the server openly.
   final String? publicKey;
 
-  // [Step4+] Base64-encoded private key, encrypted with the Argon2-derived
+  // Base64-encoded private key, encrypted with the Argon2-derived
   // symmetric key.  Server stores it; only the user can decrypt it.
   final String? encryptedPrivateKey;
 

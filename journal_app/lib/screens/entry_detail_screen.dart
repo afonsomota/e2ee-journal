@@ -1,8 +1,6 @@
 // screens/entry_detail_screen.dart
 //
 // Shows a single entry and (for owned entries) the sharing UI.
-// [Step6] The share dialog is where the magic of key re-encryption happens
-//         behind the scenes.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -72,9 +70,9 @@ class EntryDetailScreen extends StatelessWidget {
                 Text(
                   entry.encryptedBlob != null
                       ? entry.encryptedContentKey != null
-                          ? 'Hybrid E2EE (Step 5+)'
-                          : 'Symmetric E2EE (Step 3)'
-                      : 'No encryption (Step 1)',
+                          ? 'Hybrid E2EE'
+                          : 'Symmetric E2EE'
+                      : 'No encryption',
                   style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -88,7 +86,7 @@ class EntryDetailScreen extends StatelessWidget {
               ],
             ),
 
-            // Shared-with list [Step6]
+            // Shared-with list
             if (isOwned && entry.sharedWith.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -121,15 +119,6 @@ class EntryDetailScreen extends StatelessWidget {
       ),
     );
   }
-
-  // ── Step 6: Share dialog ───────────────────────────────────────────────────
-  //
-  // BLOG NOTE: From the user's perspective, they just type a username and tap
-  // Share.  Behind the scenes, JournalService:
-  //   1. Fetches the recipient's public key from the server.
-  //   2. Decrypts the content key with our private key.
-  //   3. Re-encrypts it with the recipient's public key.
-  //   4. Posts only the new key blob — the encrypted body never changes.
 
   Future<void> _showShareDialog(BuildContext context) async {
     final ctrl = TextEditingController();
