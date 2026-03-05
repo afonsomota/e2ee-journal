@@ -1,19 +1,18 @@
 # journal_backend/main.py
 #
-# FastAPI backend for the E2EE Journal blog series.
+# FastAPI backend for the E2EE Journal.
 #
-# BLOG NOTE: From the server's perspective, Steps 3–6 are uneventful.
 # The server stores and retrieves opaque blobs.  It does not need to know
 # anything about the encryption scheme — and that's the point.
 #
 # The server's job:
 #   • Authenticate users (JWT tokens, bcrypt passwords).
 #   • Store and serve ciphertext blobs it cannot read.
-#   • Distribute public keys (with the caveat discussed in Step 8).
+#   • Distribute public keys.
 #   • Manage the share table: (entry_id, recipient_id, encrypted_content_key).
 #
 # What the server NEVER sees:
-#   • Plaintext entry content (from Step 3 onward).
+#   • Plaintext entry content.
 #   • The encryption key derived from the user's password.
 #   • Any private key (it stores encryptedPrivateKey but cannot decrypt it).
 
@@ -25,7 +24,7 @@ from models.database import init_db
 
 app = FastAPI(
     title="E2EE Journal API",
-    description="Backend for the End-to-End Encrypted Journal blog series",
+    description="Backend for the End-to-End Encrypted Journal",
     version="1.0.0",
 )
 

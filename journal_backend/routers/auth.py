@@ -23,7 +23,6 @@ JWT_EXPIRY_HOURS = 24 * 7  # 1 week
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)
     password: str = Field(..., min_length=8)
-    # [Step4] Optional — only present from Step 4 onward.
     public_key: Optional[str] = None
     encrypted_private_key: Optional[str] = None
 
@@ -93,8 +92,8 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
 
     user_id = str(uuid.uuid4())
     # bcrypt the password for server-side authentication.
-    # BLOG NOTE: This is completely separate from the client-side Argon2
-    # derivation.  The server bcrypts for auth; the client Argon2s for crypto.
+    # This is completely separate from the client-side Argon2 derivation.
+    # The server bcrypts for auth; the client Argon2s for crypto.
     password_hash = bcrypt.hashpw(
         req.password.encode(), bcrypt.gensalt(rounds=12)
     ).decode()
@@ -107,8 +106,8 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
             user_id,
             req.username,
             password_hash,
-            req.public_key,            # [Step4] None in Steps 1-3
-            req.encrypted_private_key, # [Step4] None in Steps 1-3
+            req.public_key,
+            req.encrypted_private_key,
         ),
     )
     await db.commit()
@@ -140,7 +139,7 @@ async def login(req: LoginRequest, db=Depends(get_db)):
     token = _create_token(row["id"], row["username"])
     return {
         "access_token": token,
-        # [Step4] Return the encrypted private key blob so the client can
+        # Return the encrypted private key blob so the client can
         # decrypt it locally.  The server never decrypts this itself.
         "user": {
             "id": row["id"],

@@ -1,9 +1,4 @@
 # routers/entries.py
-#
-# BLOG NOTE: Notice how the entries endpoints get progressively simpler from
-# the server's perspective.  In Step 1 the server handles real content; from
-# Step 3 onward it is essentially a dumb key-value store for blobs.
-# The sharing endpoint (Step 6) only deals with encrypted key material.
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
@@ -20,11 +15,8 @@ router = APIRouter()
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
 class CreateEntryRequest(BaseModel):
-    # [Step1/2] Plaintext content.
     content: Optional[str] = None
-    # [Step3+] Encrypted blob: base64(nonce || ciphertext).
     encrypted_blob: Optional[str] = None
-    # [Step5+] Content key encrypted for the author.
     encrypted_content_key: Optional[str] = None
 
 
@@ -34,9 +26,8 @@ class UpdateEntryRequest(BaseModel):
 
 
 class ShareRequest(BaseModel):
-    # [Step6]
     recipient_username: str
-    encrypted_content_key: str  # content key encrypted for the recipient
+    encrypted_content_key: str
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -79,9 +70,9 @@ async def create_entry(
         (
             entry_id,
             user["id"],
-            req.content,              # [Step1/2] plaintext
-            req.encrypted_blob,       # [Step3+]
-            req.encrypted_content_key,# [Step5+]
+            req.content,
+            req.encrypted_blob,
+            req.encrypted_content_key,
             now,
             now,
         ),
@@ -133,8 +124,8 @@ async def list_entries(user=Depends(current_user), db=Depends(get_db)):
 @router.get("/shared-with-me")
 async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)):
     """
-    [Step6] Return entries shared with the current user.
-    Crucially: returns the encrypted_content_key encrypted FOR THIS USER,
+    Return entries shared with the current user.
+    Returns the encrypted_content_key encrypted FOR THIS USER,
     not the one stored with the entry (which is for the author).
     """
     async with db.execute(
@@ -215,12 +206,10 @@ async def share_entry(
     db=Depends(get_db),
 ):
     """
-    [Step6] Store a copy of the content key encrypted for the recipient.
-    
-    BLOG NOTE: The server's role here is minimal — it just stores a mapping
-    from (entry, recipient) to an encrypted key blob.  It cannot verify that
-    the key blob is correct because it can't read any of the underlying keys.
-    This is intentional: verification is the client's job, not the server's.
+    Store a copy of the content key encrypted for the recipient.
+    The server just stores a mapping from (entry, recipient) to an encrypted
+    key blob.  It cannot verify correctness because it can't read any of the
+    underlying keys.
     """
     # Verify caller owns the entry.
     async with db.execute(
@@ -265,10 +254,10 @@ async def revoke_share(
     db=Depends(get_db),
 ):
     """
-    [Step6] Revoke access by deleting the key blob for the recipient.
+    Revoke access by deleting the key blob for the recipient.
     They can no longer fetch a key to decrypt the entry.
-    BLOG NOTE: If they've cached the decrypted content locally, this won't
-    help.  True revocation requires re-encryption — see Step 8 discussion.
+    Note: if they've cached the decrypted content locally, this won't help.
+    True revocation requires re-encryption.
     """
     async with db.execute(
         "SELECT id FROM users WHERE username = ?", (username,)
