@@ -52,7 +52,7 @@ async def init_db():
                 id                    TEXT PRIMARY KEY,
                 entry_id              TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
                 recipient_id          TEXT NOT NULL REFERENCES users(id),
-                encrypted_content_key TEXT NOT NULL,
+                encrypted_content_key TEXT,
                 created_at            TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE(entry_id, recipient_id)
             );

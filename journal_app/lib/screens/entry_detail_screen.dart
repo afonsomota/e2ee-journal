@@ -121,25 +121,30 @@ class EntryDetailScreen extends StatelessWidget {
   }
 
   Future<void> _showShareDialog(BuildContext context) async {
+    final isEncrypted = entry.encryptedContentKey != null;
     final ctrl = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.lock_outline, size: 20),
-            SizedBox(width: 8),
-            Text('Share Entry'),
+            Icon(isEncrypted ? Icons.lock_outline : Icons.lock_open,
+                size: 20),
+            const SizedBox(width: 8),
+            const Text('Share Entry'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'The entry content key will be re-encrypted with the recipient\'s '
-              'public key. The server cannot read either.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+            Text(
+              isEncrypted
+                  ? 'The entry content key will be re-encrypted with the '
+                    'recipient\'s public key. The server cannot read either.'
+                  : 'This is a standard entry. The recipient will be able to '
+                    'read it directly.',
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             TextField(

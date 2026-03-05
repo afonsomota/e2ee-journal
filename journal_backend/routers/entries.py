@@ -27,7 +27,7 @@ class UpdateEntryRequest(BaseModel):
 
 class ShareRequest(BaseModel):
     recipient_username: str
-    encrypted_content_key: str
+    encrypted_content_key: Optional[str] = None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────

@@ -84,6 +84,22 @@ class JournalService extends ChangeNotifier {
     }
   }
 
+  // ── Create entry (plaintext) ──────────────────────────────────────────────
+
+  Future<void> createEntryPlaintext(String content) async {
+    _setLoading(true);
+    try {
+      final resp = await _dio.post('/entries', data: {'content': content});
+      final entry = JournalEntry.fromJson(resp.data);
+      _entries.insert(0, entry);
+      notifyListeners();
+    } on DioException catch (e) {
+      _error = _extractError(e, 'Failed to create entry');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   // ── Fetch & decrypt entries ───────────────────────────────────────────────
 
   Future<void> fetchAll() async {
@@ -149,36 +165,33 @@ class JournalService extends ChangeNotifier {
   }
 
   // ── Share an entry ────────────────────────────────────────────────────────
-  //
-  // The encrypted body is never touched.  Only a new key blob is created and
-  // stored server-side.  This is computationally cheap regardless of entry
-  // size — sharing a 100MB file requires the same work as sharing a 10-byte
-  // note.
 
   Future<void> shareEntry(String entryId, String recipientUsername) async {
-    assert(_crypto != null);
     _setLoading(true);
     try {
-      final recipientResp =
-          await _dio.get('/users/$recipientUsername/public-key');
-      final recipientPublicKey =
-          recipientResp.data['public_key'] as String;
-
       final entry = _entries.firstWhere((e) => e.id == entryId);
       final myEncryptedContentKey = entry.encryptedContentKey;
-      if (myEncryptedContentKey == null) {
-        throw Exception('Entry has no encrypted content key');
-      }
 
-      final recipientEncryptedContentKey =
-          await _crypto!.reEncryptContentKeyForRecipient(
-        myEncryptedContentKey,
-        recipientPublicKey,
-      );
+      String? recipientEncryptedContentKey;
+      if (myEncryptedContentKey != null && _crypto != null) {
+        // Encrypted entry: re-encrypt the content key for the recipient.
+        final recipientResp =
+            await _dio.get('/users/$recipientUsername/public-key');
+        final recipientPublicKey =
+            recipientResp.data['public_key'] as String;
+
+        recipientEncryptedContentKey =
+            await _crypto!.reEncryptContentKeyForRecipient(
+          myEncryptedContentKey,
+          recipientPublicKey,
+        );
+      }
+      // Plaintext entry: no key to re-encrypt, just grant access.
 
       await _dio.post('/entries/$entryId/share', data: {
         'recipient_username': recipientUsername,
-        'encrypted_content_key': recipientEncryptedContentKey,
+        if (recipientEncryptedContentKey != null)
+          'encrypted_content_key': recipientEncryptedContentKey,
       });
 
       final idx = _entries.indexWhere((e) => e.id == entryId);
