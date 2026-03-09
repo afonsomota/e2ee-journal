@@ -16,15 +16,33 @@ across 6 steps. Each git tag is a complete, working app.
 
 ## Navigating the Code
 
+Each step is tagged so you can check out a fully working app at any point:
+
 ```bash
-# Check out any step
-git checkout step-3
+git checkout step-1          # Plaintext CRUD (no encryption)
+git checkout step-2          # Server-side encryption at rest
+git checkout step-3          # Client-side symmetric encryption
+git checkout step-4          # Asymmetric keypair generation
+git checkout step-5          # Hybrid encryption (per-entry content keys)
+git checkout step-6          # Sharing via key re-encryption (final)
+```
 
-# See what changed between two steps
-git diff step-3..step-4
+`complete` is an alias for the latest step:
 
-# Return to the complete version
+```bash
 git checkout complete
+```
+
+To see what changed between any two steps:
+
+```bash
+git diff step-3..step-4
+```
+
+To return to the default branch after exploring:
+
+```bash
+git checkout main
 ```
 
 ## Running the App
