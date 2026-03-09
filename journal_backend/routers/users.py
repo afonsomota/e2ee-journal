@@ -2,12 +2,12 @@
 #
 # [Step4+] Public key distribution.
 #
-# BLOG NOTE (Step 8 preview): This endpoint is the trust boundary.
+# BLOG NOTE: This endpoint is the trust boundary.
 # A malicious server could return a different public key than the one the user
 # registered with.  The client would then encrypt the content key for the
 # attacker, who could decrypt it.
 #
-# Mitigations (not implemented here, covered in Step 8 blog post):
+# Mitigations (not implemented here):
 #   • Key transparency log: every public key upload is appended to an
 #     append-only audit log.  Anyone can verify a key hasn't been swapped.
 #   • Out-of-band fingerprint verification: users compare key fingerprints
