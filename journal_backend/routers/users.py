@@ -1,6 +1,19 @@
 # routers/users.py
 #
 # Public key distribution.
+#
+# BLOG NOTE: This endpoint is the trust boundary.
+# A malicious server could return a different public key than the one the user
+# registered with.  The client would then encrypt the content key for the
+# attacker, who could decrypt it.
+#
+# TODO: Mitigations (not implemented here):
+#   • Key transparency log: every public key upload is appended to an
+#     append-only audit log.  Anyone can verify a key hasn't been swapped.
+#   • Out-of-band fingerprint verification: users compare key fingerprints
+#     via a side channel (e.g. QR code in person, Signal safety numbers).
+#   • TOFU (Trust On First Use): client remembers the first key seen for a
+#     username and warns if it changes.
 
 from fastapi import APIRouter, HTTPException, Depends
 from models.database import get_db

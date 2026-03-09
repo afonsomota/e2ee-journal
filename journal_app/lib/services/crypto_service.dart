@@ -64,9 +64,10 @@ class CryptoService extends ChangeNotifier {
   // ── Key derivation ─────────────────────────────────────────────────────────
   // Derive a 32-byte symmetric key from the user's password + a fixed salt.
   //
-  // In production use a per-user random salt stored server-side.  Here we
-  // derive the salt from the username so we can reproduce the key across
-  // devices without a round-trip during the KDF step.
+  // In production use a per-user random salt stored server-side.
+  // Here we derive the salt from the username so we can reproduce the key
+  // across devices without a round-trip during the KDF step.  This is a
+  // simplification.
   //
   // Argon2id parameters: these are the libsodium "interactive" presets.
   // They are deliberately expensive to defeat brute-force offline attacks.
