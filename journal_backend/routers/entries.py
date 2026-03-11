@@ -268,7 +268,7 @@ async def revoke_share(
     [Step6] Revoke access by deleting the key blob for the recipient.
     They can no longer fetch a key to decrypt the entry.
     BLOG NOTE: If they've cached the decrypted content locally, this won't
-    help.  True revocation requires re-encryption — see Step 8 discussion.
+    help.  True revocation requires re-encryption.
     """
     async with db.execute(
         "SELECT id FROM users WHERE username = ?", (username,)
