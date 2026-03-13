@@ -19,7 +19,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import auth, entries, users
+from routers import auth, entries, fhe, users
 from models.database import init_db
 
 app = FastAPI(
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(fhe.router, prefix="/fhe", tags=["fhe"])
 
 
 @app.on_event("startup")

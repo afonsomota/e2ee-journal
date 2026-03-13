@@ -25,3 +25,9 @@ Thumbs.db
 
 # Generated
 *.g.dart
+
+# FHE secret keys (generated at runtime, not for VCS)
+emotion_ml/artifacts/fhe_keys/
+
+# Training data (downloaded via download_data.py)
+emotion_ml/data/splits/

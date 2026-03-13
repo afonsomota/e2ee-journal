@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'services/auth_service.dart';
+import 'services/emotion_service.dart';
 import 'services/journal_service.dart';
 import 'services/crypto_service.dart';
 import 'screens/auth_screen.dart';
