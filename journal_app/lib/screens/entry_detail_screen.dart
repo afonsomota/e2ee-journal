@@ -109,14 +109,21 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
             // Emotion badge
             Consumer<EmotionService>(
               builder: (_, emotion, __) {
-                final result = emotion.cached(entry.id);
                 if (!emotion.available) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: result == null
-                      ? _EmotionBadgeLoading()
-                      : _EmotionBadge(result: result),
-                );
+                final result = emotion.cached(entry.id);
+                if (result != null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: _EmotionBadge(result: result),
+                  );
+                }
+                if (emotion.isClassifying(entry.id)) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: _EmotionBadgeLoading(),
+                  );
+                }
+                return const SizedBox.shrink();
               },
             ),
 
