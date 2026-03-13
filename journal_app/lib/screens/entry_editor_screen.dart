@@ -3,9 +3,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../models/emotion_result.dart';
 import '../models/journal_entry.dart';
 import '../services/journal_service.dart';
 import '../services/crypto_service.dart';
+import '../services/emotion_service.dart';
 
 class EntryEditorScreen extends StatefulWidget {
   final JournalEntry? entry; // null = new entry
@@ -104,6 +106,18 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
               encrypted: _encrypted,
               hasKeys: crypto.hasKeys,
               onChanged: (v) => setState(() => _encrypted = v),
+            ),
+
+          // Emotion badge (edit mode only, shows cached result)
+          if (_isEditing)
+            Consumer<EmotionService>(
+              builder: (_, emotion, __) {
+                final result = emotion.cached(widget.entry!.id);
+                if (!emotion.available || result == null) {
+                  return const SizedBox.shrink();
+                }
+                return _EditorEmotionBar(result: result);
+              },
             ),
 
           // Editor
@@ -257,6 +271,51 @@ class _ReadOnlyBanner extends StatelessWidget {
               color: color.shade700,
               fontWeight: FontWeight.w500,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// Thin bar shown at the top of the editor when an emotion result is cached.
+class _EditorEmotionBar extends StatelessWidget {
+  final EmotionResult result;
+  const _EditorEmotionBar({required this.result});
+
+  static const _emoji = {
+    'anger': '😠',
+    'joy': '😊',
+    'neutral': '😐',
+    'sadness': '😢',
+    'surprise': '😮',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = _emoji[result.emotion] ?? '🤔';
+    final pct = (result.confidence * 100).toStringAsFixed(0);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+      color: Colors.purple.shade50,
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 13)),
+          const SizedBox(width: 6),
+          Text(
+            '${result.emotion}  $pct%',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.purple.shade700,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Tooltip(
+            message: 'Detected via on-device FHE',
+            child: Icon(Icons.shield_outlined,
+                size: 12, color: Colors.purple.shade300),
           ),
         ],
       ),

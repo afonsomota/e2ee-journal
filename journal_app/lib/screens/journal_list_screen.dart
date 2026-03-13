@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 import '../services/journal_service.dart';
 import '../services/crypto_service.dart';
+import '../services/emotion_service.dart';
 import '../models/journal_entry.dart';
 import 'entry_editor_screen.dart';
 import 'entry_detail_screen.dart';
@@ -288,6 +289,30 @@ class _EntryCard extends StatelessWidget {
                 style: const TextStyle(fontSize: 15, height: 1.4),
                 maxLines: 4,
                 overflow: TextOverflow.ellipsis,
+              ),
+              // Emotion chip (shown only when cached)
+              Consumer<EmotionService>(
+                builder: (_, emotion, __) {
+                  final result = emotion.cached(entry.id);
+                  if (result == null) return const SizedBox.shrink();
+                  const emoji = {
+                    'anger': '😠',
+                    'joy': '😊',
+                    'neutral': '😐',
+                    'sadness': '😢',
+                    'surprise': '😮',
+                  };
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '${emoji[result.emotion] ?? '🤔'} ${result.emotion}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),
