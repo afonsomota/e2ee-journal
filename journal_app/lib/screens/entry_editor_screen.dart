@@ -234,7 +234,7 @@ class _EncryptionModeSelector extends StatelessWidget {
           Switch(
             value: encrypted,
             onChanged: hasKeys ? onChanged : null,
-            activeColor: Colors.green.shade700,
+            activeThumbColor: Colors.green.shade700,
           ),
         ],
       ),

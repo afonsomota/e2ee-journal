@@ -18,8 +18,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from models.database import get_db
 from routers.auth import current_user
+from log import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.get("/{username}/public-key")
@@ -33,15 +35,18 @@ async def get_public_key(
     Used by the sharing flow: Alice fetches Bob's public key before
     re-encrypting the content key for him.
     """
+    logger.debug(f"Fetching public key for user {username} (requested by {user['username']})")
     async with db.execute(
         "SELECT username, public_key FROM users WHERE username = ?", (username,)
     ) as cur:
         row = await cur.fetchone()
 
     if row is None:
+        logger.warning(f"Public key lookup failed: user '{username}' not found")
         raise HTTPException(status_code=404, detail="User not found")
 
     if row["public_key"] is None:
+        logger.warning(f"Public key lookup failed: user '{username}' has no public key")
         raise HTTPException(
             status_code=404,
             detail="User has no public key",
@@ -55,6 +60,7 @@ async def get_public_key(
 
 @router.get("/me")
 async def get_me(user=Depends(current_user)):
+    logger.debug(f"Fetching profile for user {user['username']}")
     return {
         "id": user["id"],
         "username": user["username"],
