@@ -31,10 +31,9 @@ FHE_MODEL_DIR = os.environ.get(
     str(Path(__file__).parent.parent / "fhe_model"),
 )
 
-# client.zip lives one level above fhe_model/ at the backend root.
 CLIENT_ZIP_PATH = os.environ.get(
     "FHE_CLIENT_ZIP",
-    str(Path(__file__).parent.parent / "client.zip"),
+    str(Path(__file__).parent.parent / "fhe_model" / "client.zip"),
 )
 
 _server = None

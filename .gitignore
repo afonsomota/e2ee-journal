@@ -34,3 +34,7 @@ emotion_ml/data/splits/
 
 # Rust build artifacts
 journal_app/rust/target/
+journal_app/ios/Frameworks/libfhe_client.xcframework
+journal_app/android/app/src/main/jniLibs/
+
+.claude/worktrees
