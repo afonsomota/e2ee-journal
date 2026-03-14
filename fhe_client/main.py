@@ -16,6 +16,8 @@
 # In production, this sidecar would be replaced by native Dart/C code.
 
 import base64
+import logging
+import os
 import uuid
 from pathlib import Path
 
@@ -24,6 +26,15 @@ import numpy as np
 from concrete.ml.deployment import FHEModelClient
 from fastapi import FastAPI
 from pydantic import BaseModel
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=getattr(logging, log_level),
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 # ── Asset paths ──────────────────────────────────────────────────────────────
 
@@ -92,7 +103,9 @@ class DecryptResponse(BaseModel):
 @app.post("/setup", response_model=SetupResponse)
 async def setup():
     """Generate FHE keys and return evaluation key for the backend."""
+    logger.info(f"Setup requested")
     client = _get_client()
+    logger.debug(f"Generated client_id: {_client_id}")
     return SetupResponse(
         client_id=_client_id,
         evaluation_key_b64=_eval_keys_b64,
@@ -102,14 +115,19 @@ async def setup():
 @app.post("/vectorize", response_model=VectorizeResponse)
 async def vectorize(payload: VectorizeRequest):
     """Convert text to TF-IDF + LSA features, then FHE-encrypt."""
+    logger.info(f"Vectorize requested for text length: {len(payload.text)}")
     client = _get_client()
 
     # Feature pipeline: text -> TF-IDF -> LSA -> normalize
     X_tfidf = _tfidf.transform([payload.text])
+    logger.debug(f"TF-IDF shape: {X_tfidf.shape}")
     X_lsa = _normalizer.transform(_svd.transform(X_tfidf))
+    logger.debug(f"LSA normalized shape: {X_lsa.shape}")
 
     # Quantize + encrypt
+    logger.debug("Starting FHE encryption...")
     encrypted = client.quantize_encrypt_serialize(X_lsa)
+    logger.info(f"Encryption complete. Encrypted size: {len(encrypted)} bytes")
 
     return VectorizeResponse(
         encrypted_vector_b64=base64.b64encode(encrypted).decode()
@@ -119,15 +137,23 @@ async def vectorize(payload: VectorizeRequest):
 @app.post("/decrypt", response_model=DecryptResponse)
 async def decrypt(payload: DecryptRequest):
     """Decrypt FHE result and return emotion label."""
+    logger.info("Decrypt requested")
     client = _get_client()
 
     encrypted_result = base64.b64decode(payload.encrypted_result_b64)
+    logger.debug(f"Encrypted result size: {len(encrypted_result)} bytes")
+
+    logger.debug("Starting FHE decryption...")
     result = client.deserialize_decrypt_dequantize(encrypted_result)
+    logger.debug(f"Decrypted result: {result}")
 
     predicted_class = int(np.argmax(result))
     confidence = float(np.max(result))
+    emotion = LABELS[predicted_class]
+
+    logger.info(f"Decryption complete. Emotion: {emotion} ({confidence:.1%})")
 
     return DecryptResponse(
-        emotion=LABELS[predicted_class],
+        emotion=emotion,
         confidence=confidence,
     )

@@ -27,6 +27,7 @@ class JournalApp extends StatelessWidget {
           update: (_, auth, crypto, journal) =>
               (journal ?? JournalService())..update(auth, crypto),
         ),
+        ChangeNotifierProvider(create: (_) => EmotionService()..initialize()),
       ],
       child: MaterialApp(
         title: 'E2EE Journal',

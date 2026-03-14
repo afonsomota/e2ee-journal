@@ -64,49 +64,65 @@ Flutter App (journal_app/)
 ## Flutter App (`journal_app/`)
 
 - `lib/services/emotion_service.dart` — `EmotionService` (ChangeNotifier), orchestrates the 5-step FHE flow
+  - Tracks in-progress classifications via `_inProgress: Set<String>`
+  - Increased Dio `receiveTimeout` to 10 minutes for long FHE computations
+  - Auto-recovery on backend restart
 - `lib/models/emotion_result.dart` — `EmotionResult { emotion, confidence }`
+- `lib/screens/entry_detail_screen.dart` — shows emotion badge with loading state
+- `lib/screens/journal_list_screen.dart` — emotion chip in entry cards
+- `lib/screens/entry_editor_screen.dart` — emotion bar in edit mode
 - `lib/main.dart` — registers `EmotionService` in the provider tree
 
-## What's Left To Do
+## Status
 
-1. **UI integration** — Display emotion result on journal entry view/edit screen
-   - Show emotion label + confidence badge after entry is saved/opened
-   - `EmotionService.classifyEntry(entryId, plaintext)` is ready to call
+✅ **Completed:**
+- Full FHE pipeline infrastructure (setup → vectorize → predict → decrypt)
+- ML model training, quantization, and FHE compilation
+- Sidecar and backend endpoints implemented with logging
+- UI integration: emotion badges on detail/list/editor screens
+- Flutter `_inProgress` tracking to prevent stuck spinner UI
+- Dio `receiveTimeout` increased to 10 minutes (FHE inference is CPU-intensive)
+- `.vscode/launch.json` configured for Cursor with DEBUG log level for all targets
+- Python environments specified in launch configs
 
-2. **Run the full training + compile pipeline** and verify FHE round-trip works:
-   ```bash
-   cd emotion_ml
-   python training/train.py       # trains model, saves sklearn artifacts
-   python fhe/fit.py              # fits quantization
-   python fhe/compile_fhe.py      # compiles to FHE circuit
-   python fhe/test_fhe.py         # end-to-end FHE test
-   ```
+🚧 **Testing Required:**
+- FHE inference now has sufficient timeout; test emotion classification end-to-end via Cursor
+- Monitor backend and sidecar logs during classification to verify pipeline flow
+- Confirm emotion badge appears after FHE computation completes
 
-3. **Copy artifacts** to their serving locations:
-   ```bash
-   cp -r emotion_ml/artifacts/fhe_model/ journal_backend/fhe_model/
-   cp emotion_ml/artifacts/*.pkl fhe_client/assets/
-   cp -r emotion_ml/artifacts/fhe_model/ fhe_client/assets/fhe_model/
-   ```
-
-4. **Replace Python sidecar with native Dart/C** — production step, currently the sidecar is a FastAPI app
+⚡ **Future:**
+- Replace Python sidecar with native Dart/C implementation
+- Persistent evaluation key store (Redis) for production
 
 ## Running Locally
 
-```bash
-# Backend
-cd journal_backend && pip install -r requirements.txt && uvicorn main:app --port 8000
+**Via Cursor (recommended):**
+1. Open `.vscode/launch.json` — has `backend`, `fhe-sidecar`, and `flutter` configs
+2. Select target in Run & Debug sidebar (e.g., "backend") and press play
+3. Logs output directly to terminal with DEBUG level enabled
+4. All targets automatically set `LOG_LEVEL=DEBUG` for detailed tracing
 
-# FHE sidecar (after artifacts are built)
-cd fhe_client && pip install -r requirements.txt && uvicorn main:app --port 8001
+**Manual (if needed):**
+```bash
+# Backend (from worktree root, uses fhe_client/.venv which has concrete-ml)
+LOG_LEVEL=DEBUG source fhe_client/.venv/bin/activate && cd journal_backend && uvicorn main:app --reload --port 8000
+
+# FHE sidecar
+cd fhe_client && LOG_LEVEL=DEBUG source .venv/bin/activate && uvicorn main:app --reload --port 8001
 
 # Flutter
 cd journal_app && flutter run
 ```
 
-## Notes
+## Notes & Dependencies
 
-- The sidecar is intentionally separate from the backend — it runs locally on the user's device and holds private keys
-- `FHE_MODEL_DIR` env var can override default model path on the backend
-- Evaluation keys are stored in-memory (`_eval_keys` dict in `routers/fhe.py`) — in production use Redis or a persistent store
-- The emotion feature is opt-in/graceful: if the sidecar is unreachable, `EmotionService.available` is `false` and the UI should hide the emotion badge
+- **Sidecar separation:** Intentionally separate from backend — runs on user's device, holds private keys for FHE decrypt
+- **Virtual env:** Both backend and sidecar use `fhe_client/.venv` (contains `concrete-ml` and all deps)
+- **Evaluation keys:** Stored in-memory in backend (`_eval_keys` dict) — lost on restart; needs Redis/persistent store for production
+- **FHE model artifacts:** Located in `journal_backend/fhe_model/` (server.zip) and `fhe_client/assets/fhe_model/` (client.zip)
+- **UI state tracking:** `EmotionService._inProgress: Set<String>` prevents stuck spinner by tracking active classifications; `isClassifying(entryId)` checks if classification is running
+- **Dio timeout:** `receiveTimeout: Duration(minutes: 10)` in `emotion_service.dart` — FHE inference is CPU-intensive and can take several minutes; timeout must be generous
+- **Logging:** Both backend (`main.py`) and sidecar (`main.py`) use `LOG_LEVEL` env var (default INFO). All endpoints log request/response sizes and execution stages
+- **Graceful degradation:** If sidecar unreachable, `EmotionService.available = false` and UI hides emotion features; auto-recovery on backend restart via `unawaited(initialize())`
+- **Branch:** Working on `dev` branch, not `main`
+- **Python paths:** `.vscode/launch.json` specifies `${workspaceFolder}/fhe_client/.venv/bin/python` for both backend and sidecar targets
