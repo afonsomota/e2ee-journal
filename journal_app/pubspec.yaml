@@ -16,9 +16,6 @@ dependencies:
   # Dart FFI helpers (malloc, Utf8, etc.) — required by fhe_native.dart
   ffi: ^2.1.0
 
-  # App-support directory for FHE key/asset extraction
-  path_provider: ^2.1.0
-
   # Secure local storage (for private key)
   flutter_secure_storage: ^9.0.0
 
@@ -56,5 +53,3 @@ flutter:
     - assets/fhe/idf_weights.bin
     - assets/fhe/svd_components.bin
     - assets/fhe/quantization_params.json
-    - assets/fhe/client.zip
-    - assets/fhe/fhe_helper.py

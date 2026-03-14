@@ -2,13 +2,13 @@
 //
 // Orchestrates the FHE emotion classification flow.
 //
-// The Python sidecar has been replaced by a native Dart FHE client (FheClient)
-// that handles vectorization, encryption, and decryption in-process via
-// Dart FFI → libfhe_wrapper.so → concrete-ml.
+// All FHE operations (vectorization, encryption, decryption) are performed
+// in-process by FheClient via Dart FFI → libfhe_client (native Rust/TFHE-rs).
+// No Python runtime is required on-device.
 //
 // Flow:
-//   1. FheClient.setup()             → evaluation key (base64)
-//   2. POST backend /fhe/key         → upload evaluation key
+//   1. FheClient.setup()             → LWE key (base64)
+//   2. POST backend /fhe/setup       → server generates circuit eval keys from LWE key
 //   3. FheClient.vectorizeAndEncrypt → encrypted feature vector (base64)
 //   4. POST backend /fhe/predict     → encrypted result (base64)
 //   5. FheClient.decryptResult       → EmotionResult
@@ -52,14 +52,14 @@ class EmotionService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     try {
-      // 1. Setup native FHE client → get evaluation key
-      final evalKeyB64 = await _fheClient.setup();
+      // 1. Setup native FHE client → get LWE key (derives from private client key)
+      final lweKeyB64 = await _fheClient.setup();
       _clientId = 'dart-fhe-client';
 
-      // 2. Upload evaluation key to backend
-      await _backend.post('/fhe/key', data: {
+      // 2. Upload LWE key to backend so it can generate compatible circuit eval keys.
+      await _backend.post('/fhe/setup', data: {
         'client_id': _clientId,
-        'evaluation_key_b64': evalKeyB64,
+        'lwe_key_b64': lweKeyB64,
       });
 
       _initialized = true;

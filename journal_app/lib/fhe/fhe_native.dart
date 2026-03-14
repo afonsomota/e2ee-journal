@@ -1,15 +1,18 @@
 // lib/fhe/fhe_native.dart
 //
-// Dart FFI bindings for libfhe_wrapper.so.
+// Dart FFI bindings for libfhe_client — the native Rust TFHE-rs client.
 //
-// The shared library (built from native/fhe_wrapper.cpp) embeds the Python
-// interpreter and calls concrete-ml's FHEModelClient for setup, encrypt, and
-// decrypt.
+// The Rust library is built from journal_app/rust/ using:
+//   iOS:     rust/build_ios.sh     → ios/Frameworks/libfhe_client.xcframework
+//   Android: rust/build_android.sh → android/app/src/main/jniLibs/*/libfhe_client.so
+//   Linux:   cargo build --release → target/release/libfhe_client.so  (dev only)
 //
-// Environment:
-//   Set FHE_PYTHON_HOME in the process environment to point at the venv root
-//   that contains concrete-ml before this library is loaded.  The C wrapper
-//   reads this env-var during fhe_init().
+// No Python runtime required — all FHE crypto is native Rust (tfhe-rs 0.10).
+//
+// Key compatibility:
+//   • Key generation matches concrete-ml-extensions keygen_radix()
+//   • Encryption matches encrypt_serialize_u8_radix_2d()
+//   • Decryption matches decrypt_serialized_i8_radix_2d()
 
 import 'dart:ffi';
 import 'dart:io';
@@ -19,138 +22,207 @@ import 'package:ffi/ffi.dart';
 
 // ── C function signatures ─────────────────────────────────────────────────────
 
-typedef _FheInitC = Int32 Function(
-    Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
-typedef _FheInitDart = int Function(
-    Pointer<Utf8>, Pointer<Utf8>, Pointer<Utf8>);
+// int32_t fhe_keygen(
+//     uint8_t **ck_out, size_t *ck_len,
+//     uint8_t **sk_out, size_t *sk_len,
+//     uint8_t **lwe_out, size_t *lwe_len)
+typedef _FheKeygenC = Int32 Function(
+    Pointer<Pointer<Uint8>>, Pointer<Size>,
+    Pointer<Pointer<Uint8>>, Pointer<Size>,
+    Pointer<Pointer<Uint8>>, Pointer<Size>);
+typedef _FheKeygenDart = int Function(
+    Pointer<Pointer<Uint8>>, Pointer<Size>,
+    Pointer<Pointer<Uint8>>, Pointer<Size>,
+    Pointer<Pointer<Uint8>>, Pointer<Size>);
 
-typedef _FheGetEvalKeyC = Pointer<Uint8> Function(Pointer<Int32>);
-typedef _FheGetEvalKeyDart = Pointer<Uint8> Function(Pointer<Int32>);
+// int32_t fhe_encrypt_u8(
+//     const uint8_t *ck, size_t ck_len,
+//     const uint8_t *vals, size_t n_vals,
+//     uint8_t **ct_out, size_t *ct_len)
+typedef _FheEncryptU8C = Int32 Function(
+    Pointer<Uint8>, Size, Pointer<Uint8>, Size,
+    Pointer<Pointer<Uint8>>, Pointer<Size>);
+typedef _FheEncryptU8Dart = int Function(
+    Pointer<Uint8>, int, Pointer<Uint8>, int,
+    Pointer<Pointer<Uint8>>, Pointer<Size>);
 
-typedef _FheEncryptC = Pointer<Uint8> Function(
-    Pointer<Float>, Int32, Pointer<Int32>);
-typedef _FheEncryptDart = Pointer<Uint8> Function(
-    Pointer<Float>, int, Pointer<Int32>);
+// int32_t fhe_decrypt_i8(
+//     const uint8_t *ck, size_t ck_len,
+//     const uint8_t *ct, size_t ct_len,
+//     int8_t **out, size_t *out_len)
+typedef _FheDecryptI8C = Int32 Function(
+    Pointer<Uint8>, Size, Pointer<Uint8>, Size,
+    Pointer<Pointer<Int8>>, Pointer<Size>);
+typedef _FheDecryptI8Dart = int Function(
+    Pointer<Uint8>, int, Pointer<Uint8>, int,
+    Pointer<Pointer<Int8>>, Pointer<Size>);
 
-typedef _FheDecryptC = Pointer<Float> Function(
-    Pointer<Uint8>, Int32, Pointer<Int32>);
-typedef _FheDecryptDart = Pointer<Float> Function(
-    Pointer<Uint8>, int, Pointer<Int32>);
+// void fhe_free_buf(uint8_t *ptr, size_t len)
+typedef _FheFreeC    = Void Function(Pointer<Uint8>, Size);
+typedef _FheFreeDart = void Function(Pointer<Uint8>, int);
 
-typedef _FheFreeC = Void Function(Pointer<Void>);
-typedef _FheFreeDart = void Function(Pointer<Void>);
+// void fhe_free_i8_buf(int8_t *ptr, size_t len)
+typedef _FheFreeI8C    = Void Function(Pointer<Int8>, Size);
+typedef _FheFreeI8Dart = void Function(Pointer<Int8>, int);
 
 // ── FheNative ─────────────────────────────────────────────────────────────────
 
-/// Low-level Dart FFI bindings for the native FHE wrapper.
+/// Low-level Dart FFI bindings for the native Rust FHE client.
 ///
-/// Prefer using [FheClient] which adds asset extraction, base64 encoding, and
-/// error handling.
+/// Prefer using [FheClient] which adds key persistence, base64 encoding, and
+/// the full setup → encrypt → decrypt workflow.
 class FheNative {
-  late final _FheInitDart _fheInit;
-  late final _FheGetEvalKeyDart _fheGetEvalKey;
-  late final _FheEncryptDart _fheEncrypt;
-  late final _FheDecryptDart _fheDecrypt;
-  late final _FheFreeDart _fheFree;
+  late final _FheKeygenDart   _keygen;
+  late final _FheEncryptU8Dart _encryptU8;
+  late final _FheDecryptI8Dart _decryptI8;
+  late final _FheFreeDart      _freeBuf;
+  late final _FheFreeI8Dart    _freeI8Buf;
 
   FheNative() {
-    final lib = DynamicLibrary.open(_libraryPath());
-    _fheInit =
-        lib.lookupFunction<_FheInitC, _FheInitDart>('fhe_init');
-    _fheGetEvalKey =
-        lib.lookupFunction<_FheGetEvalKeyC, _FheGetEvalKeyDart>('fhe_get_eval_key');
-    _fheEncrypt =
-        lib.lookupFunction<_FheEncryptC, _FheEncryptDart>('fhe_encrypt');
-    _fheDecrypt =
-        lib.lookupFunction<_FheDecryptC, _FheDecryptDart>('fhe_decrypt');
-    _fheFree =
-        lib.lookupFunction<_FheFreeC, _FheFreeDart>('fhe_free');
+    final lib = _loadLibrary();
+    _keygen    = lib.lookupFunction<_FheKeygenC,    _FheKeygenDart>   ('fhe_keygen');
+    _encryptU8 = lib.lookupFunction<_FheEncryptU8C, _FheEncryptU8Dart>('fhe_encrypt_u8');
+    _decryptI8 = lib.lookupFunction<_FheDecryptI8C, _FheDecryptI8Dart>('fhe_decrypt_i8');
+    _freeBuf   = lib.lookupFunction<_FheFreeC,      _FheFreeDart>     ('fhe_free_buf');
+    _freeI8Buf = lib.lookupFunction<_FheFreeI8C,    _FheFreeI8Dart>   ('fhe_free_i8_buf');
   }
 
-  static String _libraryPath() {
-    if (Platform.isLinux) {
-      return 'libfhe_wrapper.so';
+  static DynamicLibrary _loadLibrary() {
+    if (Platform.isIOS) {
+      // Static library linked into the app binary via XCFramework.
+      return DynamicLibrary.process();
+    } else if (Platform.isAndroid) {
+      return DynamicLibrary.open('libfhe_client.so');
+    } else if (Platform.isLinux) {
+      // Development: cargo build --release in journal_app/rust/
+      return DynamicLibrary.open('libfhe_client.so');
     } else if (Platform.isMacOS) {
-      return 'libfhe_wrapper.dylib';
+      return DynamicLibrary.open('libfhe_client.dylib');
     }
     throw UnsupportedError(
         'FHE native library not supported on ${Platform.operatingSystem}');
   }
 
-  /// Initialise Python + FHEModelClient.
+  // ── Key generation ──────────────────────────────────────────────────────────
+
+  /// Generate a fresh TFHE-rs keypair.
   ///
-  /// [helperPyPath]   — filesystem path to fhe_helper.py
-  /// [clientZipPath]  — filesystem path to client.zip
-  /// [keyDir]         — directory for FHE key storage
+  /// Returns a [KeygenResult] with three serialised byte arrays:
+  ///   • [KeygenResult.clientKey] — keep secret on-device
+  ///   • [KeygenResult.serverKey] — evaluation key, upload via `POST /fhe/key`
+  ///   • [KeygenResult.lweKey]    — send to `POST /fhe/setup` for circuit binding
   ///
-  /// Returns 0 on success, -1 on failure.
-  int init(String helperPyPath, String clientZipPath, String keyDir) {
-    final pHelper = helperPyPath.toNativeUtf8();
-    final pZip = clientZipPath.toNativeUtf8();
-    final pKeys = keyDir.toNativeUtf8();
+  /// This is a CPU-intensive operation (can take 10–60 s on mobile).
+  KeygenResult keygen() {
+    final ckPtrPtr  = malloc<Pointer<Uint8>>();
+    final ckLen     = malloc<Size>();
+    final skPtrPtr  = malloc<Pointer<Uint8>>();
+    final skLen     = malloc<Size>();
+    final lwePtrPtr = malloc<Pointer<Uint8>>();
+    final lweLen    = malloc<Size>();
+
     try {
-      return _fheInit(pHelper, pZip, pKeys);
+      final rc = _keygen(ckPtrPtr, ckLen, skPtrPtr, skLen, lwePtrPtr, lweLen);
+      if (rc != 0) throw StateError('fhe_keygen failed (code $rc)');
+
+      final ck  = _readAndFree(ckPtrPtr.value,  ckLen.value);
+      final sk  = _readAndFree(skPtrPtr.value,  skLen.value);
+      final lwe = _readAndFree(lwePtrPtr.value, lweLen.value);
+      return KeygenResult(clientKey: ck, serverKey: sk, lweKey: lwe);
     } finally {
-      malloc.free(pHelper);
-      malloc.free(pZip);
-      malloc.free(pKeys);
+      malloc.free(ckPtrPtr);  malloc.free(ckLen);
+      malloc.free(skPtrPtr);  malloc.free(skLen);
+      malloc.free(lwePtrPtr); malloc.free(lweLen);
     }
   }
 
-  /// Return the serialised evaluation key as a [Uint8List].
-  Uint8List getEvalKey() {
-    final lenPtr = malloc<Int32>();
+  // ── Encryption ──────────────────────────────────────────────────────────────
+
+  /// Encrypt [quantizedValues] (uint8, one per feature dimension) under [clientKey].
+  ///
+  /// Returns a bincode-serialised `Vec<FheUint8>` compatible with
+  /// concrete-ml-extensions `encrypt_serialize_u8_radix_2d`.
+  Uint8List encryptU8(Uint8List clientKey, Uint8List quantizedValues) {
+    final ckPtr  = _toNativeUint8(clientKey);
+    final valPtr = _toNativeUint8(quantizedValues);
+    final ctPtrPtr = malloc<Pointer<Uint8>>();
+    final ctLen    = malloc<Size>();
+
     try {
-      final ptr = _fheGetEvalKey(lenPtr);
-      if (ptr == nullptr) throw StateError('fhe_get_eval_key returned null');
-      final result = Uint8List.fromList(ptr.asTypedList(lenPtr.value));
-      _fheFree(ptr.cast());
-      return result;
+      final rc = _encryptU8(
+          ckPtr, clientKey.length,
+          valPtr, quantizedValues.length,
+          ctPtrPtr, ctLen);
+      if (rc != 0) throw StateError('fhe_encrypt_u8 failed (code $rc)');
+      return _readAndFree(ctPtrPtr.value, ctLen.value);
     } finally {
-      malloc.free(lenPtr);
+      malloc.free(ckPtr);    malloc.free(valPtr);
+      malloc.free(ctPtrPtr); malloc.free(ctLen);
     }
   }
 
-  /// Quantise, encrypt and serialise a float32 feature vector.
+  // ── Decryption ──────────────────────────────────────────────────────────────
+
+  /// Decrypt [ciphertext] (bincode `Vec<FheInt8>`) under [clientKey].
   ///
-  /// [features] — 200-dimensional L2-normalised LSA features.
-  Uint8List encrypt(Float32List features) {
-    final lenPtr = malloc<Int32>();
-    final featurePtr = malloc<Float>(features.length);
-    // Copy Dart list into C memory
-    for (int i = 0; i < features.length; i++) {
-      featurePtr[i] = features[i];
-    }
+  /// Returns raw signed int8 class scores.  Apply the output quantizer
+  /// (scale / zero_point from quantization_params.json) to get float scores.
+  Int8List decryptI8(Uint8List clientKey, Uint8List ciphertext) {
+    final ckPtr  = _toNativeUint8(clientKey);
+    final ctPtr  = _toNativeUint8(ciphertext);
+    final outPtrPtr = malloc<Pointer<Int8>>();
+    final outLen    = malloc<Size>();
+
     try {
-      final ptr = _fheEncrypt(featurePtr, features.length, lenPtr);
-      if (ptr == nullptr) throw StateError('fhe_encrypt returned null');
-      final result = Uint8List.fromList(ptr.asTypedList(lenPtr.value));
-      _fheFree(ptr.cast());
+      final rc = _decryptI8(
+          ckPtr, clientKey.length,
+          ctPtr, ciphertext.length,
+          outPtrPtr, outLen);
+      if (rc != 0) throw StateError('fhe_decrypt_i8 failed (code $rc)');
+
+      // Copy i8 data out before freeing
+      final len = outLen.value;
+      final result = Int8List(len);
+      for (int i = 0; i < len; i++) {
+        result[i] = outPtrPtr.value[i];
+      }
+      _freeI8Buf(outPtrPtr.value, len);
       return result;
     } finally {
-      malloc.free(lenPtr);
-      malloc.free(featurePtr);
+      malloc.free(ckPtr);     malloc.free(ctPtr);
+      malloc.free(outPtrPtr); malloc.free(outLen);
     }
   }
 
-  /// Deserialise, decrypt and dequantise an FHE inference result.
-  ///
-  /// Returns a [Float32List] of length 5 (one score per emotion class).
-  Float32List decrypt(Uint8List encrypted) {
-    final lenPtr = malloc<Int32>();
-    final encPtr = malloc<Uint8>(encrypted.length);
-    for (int i = 0; i < encrypted.length; i++) {
-      encPtr[i] = encrypted[i];
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  Pointer<Uint8> _toNativeUint8(Uint8List data) {
+    final ptr = malloc<Uint8>(data.length);
+    for (int i = 0; i < data.length; i++) {
+      ptr[i] = data[i];
     }
-    try {
-      final ptr = _fheDecrypt(encPtr, encrypted.length, lenPtr);
-      if (ptr == nullptr) throw StateError('fhe_decrypt returned null');
-      final result = Float32List.fromList(ptr.asTypedList(lenPtr.value));
-      _fheFree(ptr.cast());
-      return result;
-    } finally {
-      malloc.free(lenPtr);
-      malloc.free(encPtr);
-    }
+    return ptr;
   }
+
+  /// Copy bytes from [ptr]/[len] into a [Uint8List] then free the native buf.
+  Uint8List _readAndFree(Pointer<Uint8> ptr, int len) {
+    final result = Uint8List.fromList(ptr.asTypedList(len));
+    _freeBuf(ptr, len);
+    return result;
+  }
+}
+
+// ── Value types ───────────────────────────────────────────────────────────────
+
+/// Result of [FheNative.keygen].
+class KeygenResult {
+  final Uint8List clientKey;
+  final Uint8List serverKey;
+  final Uint8List lweKey;
+
+  const KeygenResult({
+    required this.clientKey,
+    required this.serverKey,
+    required this.lweKey,
+  });
 }
