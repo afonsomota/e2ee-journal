@@ -1,0 +1,44 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "backend",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["main:app", "--reload", "--port", "8000", "--log-level", "debug"],
+      "jinja": true,
+      "justMyCode": true,
+      "python": "${workspaceFolder}/fhe_client/.venv/bin/python",
+      "cwd": "${workspaceFolder}/journal_backend",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "LOG_LEVEL": "DEBUG"
+      }
+    },
+    {
+      "name": "fhe-sidecar",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["main:app", "--reload", "--port", "8001"],
+      "jinja": true,
+      "justMyCode": true,
+      "python": "${workspaceFolder}/fhe_client/.venv/bin/python",
+      "cwd": "${workspaceFolder}/fhe_client",
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",
+        "LOG_LEVEL": "DEBUG"
+      }
+    },
+    {
+      "name": "flutter",
+      "type": "dart",
+      "request": "launch",
+      "program": "${workspaceFolder}/journal_app/lib/main.dart",
+      "cwd": "${workspaceFolder}/journal_app",
+      //"deviceId": "iphone",
+      "flutterMode": "debug"
+    }
+  ]
+}
