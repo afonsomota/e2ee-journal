@@ -9,7 +9,7 @@
       "args": ["main:app", "--reload", "--port", "8000", "--log-level", "debug"],
       "jinja": true,
       "justMyCode": true,
-      "python": "${workspaceFolder}/fhe_client/.venv/bin/python",
+      "python": "${workspaceFolder}/journal_backend/.venv/bin/python",
       "cwd": "${workspaceFolder}/journal_backend",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
@@ -37,7 +37,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/journal_app/lib/main.dart",
       "cwd": "${workspaceFolder}/journal_app",
-      //"deviceId": "iphone",
+      "deviceId": "iphone",
       "flutterMode": "debug"
     }
   ]

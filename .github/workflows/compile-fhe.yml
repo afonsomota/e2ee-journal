@@ -1,0 +1,31 @@
+name: Compile FHE Model
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r emotion_ml/requirements.txt
+
+      - name: Preprocess data
+        run: python emotion_ml/data/preprocess.py
+
+      - name: Compile FHE model
+        run: python emotion_ml/fhe/compile_fhe.py
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fhe-model
+          path: emotion_ml/artifacts/fhe_model/
+          retention-days: 30

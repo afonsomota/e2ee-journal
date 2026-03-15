@@ -2,31 +2,27 @@
 //
 // Orchestrates the FHE emotion classification flow.
 //
-// The Dart app is the orchestrator — it calls the local Python sidecar for
-// vectorization/encryption/decryption, and the backend server for FHE
-// inference. This mirrors production architecture where the sidecar would be
-// replaced by native code.
+// All FHE operations (vectorization, encryption, decryption) are performed
+// in-process by FheClient via Dart FFI → libfhe_client (native Rust/TFHE-rs).
+// No Python runtime is required on-device.
 //
 // Flow:
-//   1. POST sidecar /setup        → get evaluation key
-//   2. POST backend /fhe/key      → upload evaluation key
-//   3. POST sidecar /vectorize    → get encrypted feature vector
-//   4. POST backend /fhe/predict  → get encrypted result
-//   5. POST sidecar /decrypt      → get emotion label
+//   1. FheClient.setup()             → LWE key (base64)
+//   2. POST backend /fhe/setup       → server generates circuit eval keys from LWE key
+//   3. FheClient.vectorizeAndEncrypt → encrypted feature vector (base64)
+//   4. POST backend /fhe/predict     → encrypted result (base64)
+//   5. FheClient.decryptResult       → EmotionResult
 
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
 import '../models/emotion_result.dart';
+import '../fhe/fhe_client.dart';
 
 class EmotionService extends ChangeNotifier {
-  // Local sidecar (TF-IDF + FHE encrypt/decrypt)
-  final Dio _sidecar = Dio(BaseOptions(
-    baseUrl: 'http://localhost:8001',
-    connectTimeout: const Duration(seconds: 60),
-    receiveTimeout: const Duration(seconds: 60),
-  ));
+  // Native FHE client (replaces the Python sidecar HTTP calls)
+  final FheClient _fheClient = FheClient();
 
   // Backend server (FHE inference)
   // FHE inference is CPU-intensive and can take several minutes — use a
@@ -56,15 +52,14 @@ class EmotionService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     try {
-      // 1. Get evaluation key from sidecar
-      final setupResp = await _sidecar.post('/setup');
-      _clientId = setupResp.data['client_id'] as String;
-      final evalKeyB64 = setupResp.data['evaluation_key_b64'] as String;
+      // 1. Setup native FHE client → get LWE key (derives from private client key)
+      final lweKeyB64 = await _fheClient.setup();
+      _clientId = 'dart-fhe-client';
 
-      // 2. Upload evaluation key to backend
-      await _backend.post('/fhe/key', data: {
+      // 2. Upload LWE key to backend so it can generate compatible circuit eval keys.
+      await _backend.post('/fhe/setup', data: {
         'client_id': _clientId,
-        'evaluation_key_b64': evalKeyB64,
+        'lwe_key_b64': lweKeyB64,
       });
 
       _initialized = true;
@@ -80,7 +75,7 @@ class EmotionService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      // Sidecar not running — degrade gracefully
+      // FHE client or backend unavailable — degrade gracefully
       _available = false;
     }
   }
@@ -95,11 +90,8 @@ class EmotionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Vectorize + encrypt (sidecar)
-      final vecResp = await _sidecar.post('/vectorize', data: {
-        'text': plaintext,
-      });
-      final encryptedVectorB64 = vecResp.data['encrypted_vector_b64'] as String;
+      // 1. Vectorize + encrypt (native Dart FHE client)
+      final encryptedVectorB64 = await _fheClient.vectorizeAndEncrypt(plaintext);
 
       // 2. FHE inference (backend)
       final predResp = await _backend.post('/fhe/predict', data: {
@@ -109,14 +101,8 @@ class EmotionService extends ChangeNotifier {
       final encryptedResultB64 =
           predResp.data['encrypted_result_b64'] as String;
 
-      // 3. Decrypt (sidecar)
-      final decResp = await _sidecar.post('/decrypt', data: {
-        'encrypted_result_b64': encryptedResultB64,
-      });
-
-      final result = EmotionResult.fromJson(
-        decResp.data as Map<String, dynamic>,
-      );
+      // 3. Decrypt (native Dart FHE client)
+      final result = await _fheClient.decryptResult(encryptedResultB64);
       _cache[entryId] = result;
       _inProgress.remove(entryId);
       notifyListeners();
