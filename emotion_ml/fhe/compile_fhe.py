@@ -21,11 +21,8 @@ from sklearn.utils.class_weight import compute_sample_weight
 from concrete.ml.deployment import FHEModelDev
 from concrete.ml.sklearn import XGBClassifier as FHEXGBClassifier
 
-try:
-    from concrete.ml.common.serialization.encoder import CiphertextFormat
-    _TFHE_RS_FORMAT = CiphertextFormat.TFHE_RS
-except ImportError:
-    _TFHE_RS_FORMAT = None
+from concrete.ml.common.utils import CiphertextFormat
+_TFHE_RS_FORMAT = CiphertextFormat.TFHE_RS
 
 from config import (
     ARTIFACTS_DIR,
