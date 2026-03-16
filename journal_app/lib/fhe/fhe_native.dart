@@ -108,9 +108,9 @@ class FheNative {
   /// Generate a fresh TFHE-rs keypair.
   ///
   /// Returns a [KeygenResult] with three serialised byte arrays:
-  ///   • [KeygenResult.clientKey] — keep secret on-device
+  ///   • [KeygenResult.clientKey] — keep secret on-device (never uploaded)
   ///   • [KeygenResult.serverKey] — evaluation key, upload via `POST /fhe/key`
-  ///   • [KeygenResult.lweKey]    — send to `POST /fhe/setup` for circuit binding
+  ///   • [KeygenResult.lweKey]    — unused; retained for ABI stability
   ///
   /// This is a CPU-intensive operation (can take 10–60 s on mobile).
   KeygenResult keygen() {

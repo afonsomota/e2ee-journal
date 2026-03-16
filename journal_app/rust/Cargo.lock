@@ -60,6 +60,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
 
 [[package]]
+name = "capnp"
+version = "0.19.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e985a566bdaae9a428a957d12b10c318d41b2afddb54cfbb764878059df636e"
+dependencies = [
+ "embedded-io",
+]
+
+[[package]]
+name = "capnpc"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c75ba30e0f08582d53c2f3710cf4bb65ff562614b1ba86906d7391adffe189ec"
+dependencies = [
+ "capnp",
+]
+
+[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -145,6 +163,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
+name = "embedded-io"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
+
+[[package]]
 name = "equator"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -169,6 +193,9 @@ name = "fhe_client"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "bytemuck",
+ "capnp",
+ "capnpc",
  "serde",
  "tfhe",
 ]
@@ -193,12 +220,6 @@ dependencies = [
  "libc",
  "wasi",
 ]
-
-[[package]]
-name = "heck"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "inout"
@@ -395,27 +416,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "strum"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
-dependencies = [
- "strum_macros",
-]
-
-[[package]]
-name = "strum_macros"
-version = "0.27.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
-dependencies = [
- "heck",
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "syn"
 version = "2.0.117"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -428,8 +428,8 @@ dependencies = [
 
 [[package]]
 name = "tfhe"
-version = "1.2.0"
-source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=ec78318af3de8c8e8d857d49e4b289687c356e93#ec78318af3de8c8e8d857d49e4b289687c356e93"
+version = "1.0.0"
+source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=1ec21a5e0b7c12165aa7e556c01e730c3117765a#1ec21a5e0b7c12165aa7e556c01e730c3117765a"
 dependencies = [
  "aligned-vec",
  "bincode",
@@ -442,7 +442,6 @@ dependencies = [
  "rayon",
  "serde",
  "sha3",
- "strum",
  "tfhe-csprng",
  "tfhe-fft",
  "tfhe-ntt",
@@ -452,7 +451,7 @@ dependencies = [
 [[package]]
 name = "tfhe-csprng"
 version = "0.5.0"
-source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=ec78318af3de8c8e8d857d49e4b289687c356e93#ec78318af3de8c8e8d857d49e4b289687c356e93"
+source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=1ec21a5e0b7c12165aa7e556c01e730c3117765a#1ec21a5e0b7c12165aa7e556c01e730c3117765a"
 dependencies = [
  "aes",
  "libc",
@@ -461,8 +460,8 @@ dependencies = [
 
 [[package]]
 name = "tfhe-fft"
-version = "0.9.0"
-source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=ec78318af3de8c8e8d857d49e4b289687c356e93#ec78318af3de8c8e8d857d49e4b289687c356e93"
+version = "0.8.0"
+source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=1ec21a5e0b7c12165aa7e556c01e730c3117765a#1ec21a5e0b7c12165aa7e556c01e730c3117765a"
 dependencies = [
  "aligned-vec",
  "bytemuck",
@@ -475,8 +474,8 @@ dependencies = [
 
 [[package]]
 name = "tfhe-ntt"
-version = "0.6.0"
-source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=ec78318af3de8c8e8d857d49e4b289687c356e93#ec78318af3de8c8e8d857d49e4b289687c356e93"
+version = "0.5.0"
+source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=1ec21a5e0b7c12165aa7e556c01e730c3117765a#1ec21a5e0b7c12165aa7e556c01e730c3117765a"
 dependencies = [
  "aligned-vec",
  "bytemuck",
@@ -485,8 +484,8 @@ dependencies = [
 
 [[package]]
 name = "tfhe-versionable"
-version = "0.6.0"
-source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=ec78318af3de8c8e8d857d49e4b289687c356e93#ec78318af3de8c8e8d857d49e4b289687c356e93"
+version = "0.5.0"
+source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=1ec21a5e0b7c12165aa7e556c01e730c3117765a#1ec21a5e0b7c12165aa7e556c01e730c3117765a"
 dependencies = [
  "aligned-vec",
  "num-complex",
@@ -496,8 +495,8 @@ dependencies = [
 
 [[package]]
 name = "tfhe-versionable-derive"
-version = "0.6.0"
-source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=ec78318af3de8c8e8d857d49e4b289687c356e93#ec78318af3de8c8e8d857d49e4b289687c356e93"
+version = "0.5.0"
+source = "git+https://github.com/zama-ai/tfhe-rs.git?rev=1ec21a5e0b7c12165aa7e556c01e730c3117765a#1ec21a5e0b7c12165aa7e556c01e730c3117765a"
 dependencies = [
  "proc-macro2",
  "quote",

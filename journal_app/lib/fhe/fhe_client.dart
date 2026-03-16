@@ -6,7 +6,7 @@
 // (Rust/TFHE-rs).  No Python runtime is required on-device.
 //
 // Flow:
-//   setup()                    → base64 LWE key  (POST to /fhe/setup)
+//   setup()                    → base64 server/eval key  (POST to /fhe/key)
 //   vectorizeAndEncrypt(text)  → base64 ciphertext  (POST to /fhe/predict)
 //   decryptResult(b64)         → EmotionResult
 
@@ -24,8 +24,9 @@ import 'fhe_native.dart';
 const List<String> _kLabels = ['anger', 'joy', 'neutral', 'sadness', 'surprise'];
 
 // Secure-storage keys for persisting FHE keys across app launches.
-const _kClientKey = 'fhe_client_key_v1';
-const _kLweKey    = 'fhe_lwe_key_v1';
+// v2: server key is now a Concrete Cap'n Proto ServerKeyset (not TFHE-rs bincode)
+const _kClientKey = 'fhe_client_key_v2';
+const _kServerKey = 'fhe_server_key_v2';
 
 /// High-level FHE client; owns the [Vectorizer] and [FheNative] instances.
 class FheClient {
@@ -39,48 +40,46 @@ class FheClient {
   late _OutputQuantParam _outputParam;
 
   Uint8List? _clientKey;
-  Uint8List? _lweKey;
+  Uint8List? _serverKey;
   bool _initialized = false;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   /// Load assets and generate (or restore) FHE keys.
   ///
-  /// Returns the base64-encoded LWE key to be uploaded to the backend via
-  /// `POST /fhe/setup`.  This lets the server generate compatible FHE
-  /// evaluation keys without ever receiving the private client key.
+  /// Returns the base64-encoded TFHE-rs server (evaluation) key to be
+  /// uploaded to the backend via `POST /fhe/key`.  The private client key
+  /// never leaves the device.
   ///
   /// Key generation is CPU-intensive (~10–60 s on mobile) and is skipped on
   /// subsequent calls by restoring the persisted keys from secure storage.
   Future<String> setup() async {
-    if (_initialized) return base64Encode(_lweKey!);
+    if (_initialized) return base64Encode(_serverKey!);
 
     // Load vectoriser and quantization assets in parallel.
     await Future.wait([_vectorizer.load(), _loadQuantParams()]);
 
     // Try to restore previously persisted keys.
     final storedClient = await _secureStorage.read(key: _kClientKey);
-    final storedLwe    = await _secureStorage.read(key: _kLweKey);
+    final storedServer = await _secureStorage.read(key: _kServerKey);
 
-    if (storedClient != null && storedLwe != null) {
+    if (storedClient != null && storedServer != null) {
       _clientKey = base64Decode(storedClient);
-      _lweKey    = base64Decode(storedLwe);
+      _serverKey = base64Decode(storedServer);
     } else {
       // Generate a fresh TFHE-rs keypair (CPU-intensive).
       final result = _native.keygen();
       _clientKey = result.clientKey;
-      _lweKey    = result.lweKey;
-      // serverKey is not sent anywhere; only the lweKey is shared with the
-      // server so it can derive compatible evaluation keys.
+      _serverKey = result.serverKey;
 
       await Future.wait([
         _secureStorage.write(key: _kClientKey, value: base64Encode(_clientKey!)),
-        _secureStorage.write(key: _kLweKey,    value: base64Encode(_lweKey!)),
+        _secureStorage.write(key: _kServerKey, value: base64Encode(_serverKey!)),
       ]);
     }
 
     _initialized = true;
-    return base64Encode(_lweKey!);
+    return base64Encode(_serverKey!);
   }
 
   /// Vectorise [text] (TF-IDF → LSA → L2-norm), quantise to uint8, and

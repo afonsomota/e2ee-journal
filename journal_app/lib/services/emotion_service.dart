@@ -7,8 +7,8 @@
 // No Python runtime is required on-device.
 //
 // Flow:
-//   1. FheClient.setup()             → LWE key (base64)
-//   2. POST backend /fhe/setup       → server generates circuit eval keys from LWE key
+//   1. FheClient.setup()             → server/eval key (base64)
+//   2. POST backend /fhe/key         → upload eval key to backend
 //   3. FheClient.vectorizeAndEncrypt → encrypted feature vector (base64)
 //   4. POST backend /fhe/predict     → encrypted result (base64)
 //   5. FheClient.decryptResult       → EmotionResult
@@ -52,14 +52,14 @@ class EmotionService extends ChangeNotifier {
   Future<void> initialize() async {
     if (_initialized) return;
     try {
-      // 1. Setup native FHE client → get LWE key (derives from private client key)
-      final lweKeyB64 = await _fheClient.setup();
+      // 1. Setup native FHE client → get server/evaluation key
+      final evalKeyB64 = await _fheClient.setup();
       _clientId = 'dart-fhe-client';
 
-      // 2. Upload LWE key to backend so it can generate compatible circuit eval keys.
-      await _backend.post('/fhe/setup', data: {
+      // 2. Upload evaluation key to backend (private client key stays on-device).
+      await _backend.post('/fhe/key', data: {
         'client_id': _clientId,
-        'lwe_key_b64': lweKeyB64,
+        'evaluation_key_b64': evalKeyB64,
       });
 
       _initialized = true;

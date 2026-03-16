@@ -38,3 +38,14 @@ journal_app/ios/Frameworks/libfhe_client.xcframework
 journal_app/android/app/src/main/jniLibs/
 
 .claude/worktrees
+
+# Core dumps
+core
+
+# Debug/scratch files
+compare_eval_keys.py
+panic_attack_analysis.md
+raw_implementation_plan.md
+
+# Generated protocol schemas
+journal_app/rust/schema/

@@ -9,10 +9,11 @@ An end-to-end encrypted journal app with on-device FHE (Fully Homomorphic Encryp
 ```
 Flutter App (journal_app/)
   │
-  ├── Local Python Sidecar (fhe_client/)       ← runs on user's device (localhost:8001)
-  │     • TF-IDF + LSA vectorization
+  ├── Native Dart FHE Client (lib/fhe/)        ← runs in-process via Dart FFI → Rust/TFHE-rs
+  │     • TF-IDF + LSA vectorization (pure Dart)
   │     • FHE encrypt (quantize → encrypt → serialize)
   │     • FHE decrypt (deserialize → decrypt → dequantize → argmax → label)
+  │     • Key gen + persistence (flutter_secure_storage)
   │
   └── FastAPI Backend (journal_backend/)        ← cloud server (localhost:8000)
         • Stores opaque ciphertext blobs
@@ -22,11 +23,11 @@ Flutter App (journal_app/)
 
 ### FHE Flow (orchestrated by Flutter)
 
-1. Dart → sidecar `POST /setup` → get `client_id` + serialized evaluation key
+1. `FheClient.setup()` → generate/restore TFHE-rs keypair (native Rust, persisted in secure storage)
 2. Dart → backend `POST /fhe/key` → upload evaluation key
-3. Dart → sidecar `POST /vectorize` → get encrypted feature vector
+3. `FheClient.vectorizeAndEncrypt(text)` → encrypted feature vector (TF-IDF + LSA + quantize + encrypt, all in-process)
 4. Dart → backend `POST /fhe/predict` → get encrypted result
-5. Dart → sidecar `POST /decrypt` → get emotion label + confidence
+5. `FheClient.decryptResult(b64)` → emotion label + confidence (decrypt + dequantize in-process)
 
 ## ML Pipeline (`emotion_ml/`)
 
@@ -49,10 +50,8 @@ Flutter App (journal_app/)
 - `emotion_ml/artifacts/normalizer.pkl`
 - `emotion_ml/artifacts/label_encoder.pkl`
 - `journal_backend/fhe_model/server.zip` — loaded by `FHEModelServer`
-- `fhe_client/assets/fhe_model/client.zip` — loaded by `FHEModelClient`
-- `fhe_client/assets/tfidf_vectorizer.pkl` (copy)
-- `fhe_client/assets/svd.pkl` (copy)
-- `fhe_client/assets/normalizer.pkl` (copy)
+- `journal_app/assets/fhe/client.zip` — bundled in Flutter app (loaded by native Rust via FFI)
+- `journal_app/assets/fhe/quantization_params.json` — input/output quantization params for Dart client
 
 ## Backend (`journal_backend/`)
 
@@ -63,66 +62,67 @@ Flutter App (journal_app/)
 
 ## Flutter App (`journal_app/`)
 
+- `lib/fhe/fhe_client.dart` — `FheClient`: high-level Dart FHE client (setup, vectorizeAndEncrypt, decryptResult)
+- `lib/fhe/fhe_native.dart` — `FheNative`: Dart FFI bindings to `libfhe_client` (Rust/TFHE-rs)
+- `lib/fhe/vectorizer.dart` — pure-Dart TF-IDF + LSA + L2-norm vectorizer (loads vocab/SVD from assets)
 - `lib/services/emotion_service.dart` — `EmotionService` (ChangeNotifier), orchestrates the 5-step FHE flow
   - Tracks in-progress classifications via `_inProgress: Set<String>`
-  - Increased Dio `receiveTimeout` to 10 minutes for long FHE computations
+  - Dio `receiveTimeout` 10 minutes for backend FHE inference
   - Auto-recovery on backend restart
 - `lib/models/emotion_result.dart` — `EmotionResult { emotion, confidence }`
 - `lib/screens/entry_detail_screen.dart` — shows emotion badge with loading state
 - `lib/screens/journal_list_screen.dart` — emotion chip in entry cards
 - `lib/screens/entry_editor_screen.dart` — emotion bar in edit mode
 - `lib/main.dart` — registers `EmotionService` in the provider tree
+- `rust/` — Rust crate (`libfhe_client`) implementing FFI-exported keygen, encrypt, decrypt via TFHE-rs
 
 ## Status
 
 ✅ **Completed:**
 - Full FHE pipeline infrastructure (setup → vectorize → predict → decrypt)
 - ML model training, quantization, and FHE compilation
-- Sidecar and backend endpoints implemented with logging
+- **Native Dart FHE client** — Python sidecar replaced by Rust/TFHE-rs via Dart FFI; no Python runtime required on-device
+- Backend FHE inference endpoints implemented with logging
 - UI integration: emotion badges on detail/list/editor screens
 - Flutter `_inProgress` tracking to prevent stuck spinner UI
 - Dio `receiveTimeout` increased to 10 minutes (FHE inference is CPU-intensive)
-- `.vscode/launch.json` configured for Cursor with DEBUG log level for all targets
-- Python environments specified in launch configs
+- `.vscode/launch.json` configured for Cursor with DEBUG log level
 
 🚧 **Testing Required:**
-- FHE inference now has sufficient timeout; test emotion classification end-to-end via Cursor
-- Monitor backend and sidecar logs during classification to verify pipeline flow
+- Test emotion classification end-to-end with native Dart FHE client
 - Confirm emotion badge appears after FHE computation completes
 
 ⚡ **Future:**
-- Replace Python sidecar with native Dart/C implementation
 - Persistent evaluation key store (Redis) for production
 
 ## Running Locally
 
 **Via Cursor (recommended):**
-1. Open `.vscode/launch.json` — has `backend`, `fhe-sidecar`, and `flutter` configs
-2. Select target in Run & Debug sidebar (e.g., "backend") and press play
+1. Open `.vscode/launch.json` — has `backend` and `flutter` configs
+2. Select target in Run & Debug sidebar and press play
 3. Logs output directly to terminal with DEBUG level enabled
-4. All targets automatically set `LOG_LEVEL=DEBUG` for detailed tracing
 
 **Manual (if needed):**
 ```bash
-# Backend (from worktree root, uses fhe_client/.venv which has concrete-ml)
-LOG_LEVEL=DEBUG source fhe_client/.venv/bin/activate && cd journal_backend && uvicorn main:app --reload --port 8000
+# Backend
+LOG_LEVEL=DEBUG source journal_backend/.venv/bin/activate && cd journal_backend && uvicorn main:app --reload --port 8000
 
-# FHE sidecar
-cd fhe_client && LOG_LEVEL=DEBUG source .venv/bin/activate && uvicorn main:app --reload --port 8001
-
-# Flutter
+# Flutter (no sidecar needed — FHE runs natively in-app)
 cd journal_app && flutter run
+```
+
+**Before first Flutter run:** Build the native Rust FHE library (see README for full instructions):
+```bash
+cd journal_app/rust && ./build_ios.sh    # or ./build_android.sh
 ```
 
 ## Notes & Dependencies
 
-- **Sidecar separation:** Intentionally separate from backend — runs on user's device, holds private keys for FHE decrypt
-- **Virtual env:** Both backend and sidecar use `fhe_client/.venv` (contains `concrete-ml` and all deps)
+- **Native FHE client:** All on-device FHE ops (keygen, encrypt, decrypt) run in-process via `libfhe_client` (Rust/TFHE-rs) — no Python runtime or sidecar process required
+- **Key persistence:** FHE client/server keypair persisted in `flutter_secure_storage` — expensive keygen (~10–60 s on mobile) is skipped on subsequent launches
 - **Evaluation keys:** Stored in-memory in backend (`_eval_keys` dict) — lost on restart; needs Redis/persistent store for production
-- **FHE model artifacts:** Located in `journal_backend/fhe_model/` (server.zip) and `fhe_client/assets/fhe_model/` (client.zip)
-- **UI state tracking:** `EmotionService._inProgress: Set<String>` prevents stuck spinner by tracking active classifications; `isClassifying(entryId)` checks if classification is running
-- **Dio timeout:** `receiveTimeout: Duration(minutes: 10)` in `emotion_service.dart` — FHE inference is CPU-intensive and can take several minutes; timeout must be generous
-- **Logging:** Both backend (`main.py`) and sidecar (`main.py`) use `LOG_LEVEL` env var (default INFO). All endpoints log request/response sizes and execution stages
-- **Graceful degradation:** If sidecar unreachable, `EmotionService.available = false` and UI hides emotion features; auto-recovery on backend restart via `unawaited(initialize())`
-- **Branch:** Working on `dev` branch, not `main`
-- **Python paths:** `.vscode/launch.json` specifies `${workspaceFolder}/fhe_client/.venv/bin/python` for both backend and sidecar targets
+- **FHE model artifacts:** `journal_backend/fhe_model/server.zip` (backend) and `journal_app/assets/fhe/client.zip` (bundled in Flutter app)
+- **UI state tracking:** `EmotionService._inProgress: Set<String>` prevents stuck spinner; `isClassifying(entryId)` checks if classification is running
+- **Dio timeout:** `receiveTimeout: Duration(minutes: 10)` — FHE inference on backend is CPU-intensive
+- **Logging:** Backend uses `LOG_LEVEL` env var (default INFO)
+- **Graceful degradation:** If backend unreachable, `EmotionService.available = false`; auto-recovery via `unawaited(initialize())`

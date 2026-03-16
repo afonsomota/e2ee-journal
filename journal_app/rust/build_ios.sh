@@ -31,34 +31,34 @@ cd "$SCRIPT_DIR"
 #   2. Standard rustup (~/.cargo/env)
 
 _find_toolchain_cargo() {
-  # Homebrew rustup: the proxy bin and the resolved Cellar path are the same rustup,
-  # but we must call the toolchain's own cargo (not the proxy) so rustc uses the
-  # correct sysroot.  The symlink opt/rustup -> Cellar/rustup/<ver> gives us a
-  # stable path to the toolchain dir.
-  local brew_rustup_opt="/opt/homebrew/opt/rustup"
-  if [ -x "$brew_rustup_opt/bin/rustup" ]; then
-    # Resolve the versioned Cellar path (where the sysroot actually lives).
-    local cellar
-    cellar="$(realpath "$brew_rustup_opt")"
-    local toolchain_dir
-    toolchain_dir="$(ls -d "$cellar"/lib/rustlib/toolchains/stable-*/  2>/dev/null | head -1)"
-    if [ -x "$toolchain_dir/bin/cargo" ]; then
-      export RUSTUP_HOME="$cellar/lib/rustlib"
-      RUSTUP="$brew_rustup_opt/bin/rustup"
-      CARGO="$toolchain_dir/bin/cargo"
-      return 0
-    fi
+  local rustup_home="${RUSTUP_HOME:-$HOME/.rustup}"
+
+  # Locate rustup binary (Homebrew or PATH)
+  local rustup_bin
+  if [ -x "/opt/homebrew/opt/rustup/bin/rustup" ]; then
+    rustup_bin="/opt/homebrew/opt/rustup/bin/rustup"
+  elif command -v rustup &>/dev/null; then
+    rustup_bin="$(command -v rustup)"
+  else
+    return 1
   fi
-  # Standard rustup via ~/.cargo/env
-  if [ -f "$HOME/.cargo/env" ]; then
-    # shellcheck source=/dev/null
-    source "$HOME/.cargo/env"
-    if command -v rustup &>/dev/null && command -v cargo &>/dev/null; then
-      RUSTUP="$(command -v rustup)"
-      CARGO="$(command -v cargo)"
-      return 0
-    fi
+
+  # Resolve active toolchain and use its cargo directly.
+  # We cannot rely on a rustup cargo proxy because on this system /opt/homebrew/bin/cargo
+  # is the standalone Homebrew Rust, not a rustup proxy. Using the toolchain binary
+  # directly works as long as RUSTUP_HOME is exported so rustc can find its sysroot.
+  local active_toolchain
+  active_toolchain="$("$rustup_bin" show active-toolchain 2>/dev/null | awk '{print $1}')"
+  local toolchain_cargo="$rustup_home/toolchains/$active_toolchain/bin/cargo"
+  if [ -x "$toolchain_cargo" ]; then
+    local toolchain_rustc="${toolchain_cargo%cargo}rustc"
+    export RUSTUP_HOME="$rustup_home"
+    export RUSTC="$toolchain_rustc"
+    RUSTUP="$rustup_bin"
+    CARGO="$toolchain_cargo"
+    return 0
   fi
+
   return 1
 }
 
@@ -107,7 +107,8 @@ lipo -create \
   -output "/tmp/fhe_client_build/sim/$LIB_NAME"
 
 echo "==> Generating C header..."
-cat > /tmp/fhe_client_build/fhe_client.h << 'HEADER'
+mkdir -p /tmp/fhe_client_build/include
+cat > /tmp/fhe_client_build/include/fhe_client.h << 'HEADER'
 // fhe_client.h — generated header for TFHE-rs FHE client FFI
 #pragma once
 #include <stdint.h>
@@ -144,9 +145,9 @@ echo "==> Creating XCFramework..."
 rm -rf "$XCFW_DIR"
 xcodebuild -create-xcframework \
   -library "target/aarch64-apple-ios/release/$LIB_NAME" \
-  -headers /tmp/fhe_client_build/fhe_client.h \
+  -headers /tmp/fhe_client_build/include \
   -library "/tmp/fhe_client_build/sim/$LIB_NAME" \
-  -headers /tmp/fhe_client_build/fhe_client.h \
+  -headers /tmp/fhe_client_build/include \
   -output "$XCFW_DIR"
 
 echo "==> Done: $XCFW_DIR"

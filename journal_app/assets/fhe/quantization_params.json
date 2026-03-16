@@ -8,7 +8,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.004616754012371893,
+      "scale": 0.004616754012371892,
       "zero_point": 90,
       "offset": 0,
       "n_bits": 8,
@@ -57,7 +57,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003778598082166815,
+      "scale": 0.0037785980821668144,
       "zero_point": 127,
       "offset": 0,
       "n_bits": 8,
@@ -134,7 +134,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0038975807817054147,
+      "scale": 0.0038975807817054143,
       "zero_point": 123,
       "offset": 0,
       "n_bits": 8,
@@ -162,14 +162,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.003590954219167775,
+      "scale": 0.0035909542191677746,
       "zero_point": 103,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.004134783510620754,
+      "scale": 0.0041347835106207535,
       "zero_point": 127,
       "offset": 0,
       "n_bits": 8,
@@ -211,7 +211,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.004353548084478237,
+      "scale": 0.004353548084478238,
       "zero_point": 121,
       "offset": 0,
       "n_bits": 8,
@@ -225,7 +225,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.004168506841388602,
+      "scale": 0.004168506841388601,
       "zero_point": 123,
       "offset": 0,
       "n_bits": 8,
@@ -246,7 +246,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.00395303396454588,
+      "scale": 0.003953033964545879,
       "zero_point": 100,
       "offset": 0,
       "n_bits": 8,
@@ -260,7 +260,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0039084208010799915,
+      "scale": 0.003908420801079991,
       "zero_point": 97,
       "offset": 0,
       "n_bits": 8,
@@ -274,7 +274,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003184936548302041,
+      "scale": 0.0031849365483020407,
       "zero_point": 113,
       "offset": 0,
       "n_bits": 8,
@@ -316,14 +316,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.0034107969556944496,
+      "scale": 0.0034107969556944487,
       "zero_point": 99,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0032041451476146135,
+      "scale": 0.003204145147614614,
       "zero_point": 142,
       "offset": 0,
       "n_bits": 8,
@@ -344,14 +344,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.003766570048250304,
+      "scale": 0.0037665700482503034,
       "zero_point": 94,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.00348266107202402,
+      "scale": 0.0034826610720240197,
       "zero_point": 134,
       "offset": 0,
       "n_bits": 8,
@@ -372,14 +372,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.0038298995731074563,
+      "scale": 0.003829899573107456,
       "zero_point": 116,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.003340644751058694,
+      "scale": 0.0033406447510586947,
       "zero_point": 137,
       "offset": 0,
       "n_bits": 8,
@@ -393,7 +393,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0035923374575915854,
+      "scale": 0.003592337457591585,
       "zero_point": 109,
       "offset": 0,
       "n_bits": 8,
@@ -414,14 +414,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.0027028949806008175,
+      "scale": 0.002702894980600817,
       "zero_point": 126,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.003141844221070035,
+      "scale": 0.0031418442210700355,
       "zero_point": 130,
       "offset": 0,
       "n_bits": 8,
@@ -470,14 +470,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.0039012740504161814,
+      "scale": 0.003901274050416181,
       "zero_point": 47,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.003002663486026421,
+      "scale": 0.003002663486026422,
       "zero_point": 121,
       "offset": 0,
       "n_bits": 8,
@@ -505,7 +505,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003225323516600769,
+      "scale": 0.0032253235166007687,
       "zero_point": 126,
       "offset": 0,
       "n_bits": 8,
@@ -519,7 +519,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002953356810125632,
+      "scale": 0.0029533568101256322,
       "zero_point": 90,
       "offset": 0,
       "n_bits": 8,
@@ -554,14 +554,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.0028728839843954346,
+      "scale": 0.0028728839843954355,
       "zero_point": 138,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0027619643091909246,
+      "scale": 0.002761964309190924,
       "zero_point": 104,
       "offset": 0,
       "n_bits": 8,
@@ -575,21 +575,21 @@
       "is_signed": false
     },
     {
-      "scale": 0.0034663093036040537,
+      "scale": 0.003466309303604054,
       "zero_point": 80,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0027402426512100906,
+      "scale": 0.00274024265121009,
       "zero_point": 105,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.002329083538249426,
+      "scale": 0.0023290835382494255,
       "zero_point": 116,
       "offset": 0,
       "n_bits": 8,
@@ -603,14 +603,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.0031347987580309794,
+      "scale": 0.0031347987580309803,
       "zero_point": 113,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0024933101576759785,
+      "scale": 0.002493310157675979,
       "zero_point": 120,
       "offset": 0,
       "n_bits": 8,
@@ -631,7 +631,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003080400812897706,
+      "scale": 0.0030804008128977054,
       "zero_point": 78,
       "offset": 0,
       "n_bits": 8,
@@ -666,7 +666,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002949898984917101,
+      "scale": 0.0029498989849171004,
       "zero_point": 125,
       "offset": 0,
       "n_bits": 8,
@@ -743,7 +743,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003341968477797987,
+      "scale": 0.0033419684777979872,
       "zero_point": 85,
       "offset": 0,
       "n_bits": 8,
@@ -757,49 +757,49 @@
       "is_signed": false
     },
     {
-      "scale": 0.0035562602737654694,
+      "scale": 0.003556260273765469,
       "zero_point": 118,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0030469054048605304,
+      "scale": 0.003046905404860531,
       "zero_point": 103,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.002875874819211253,
+      "scale": 0.0028758748192112523,
       "zero_point": 101,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.003039652298865937,
+      "scale": 0.0030396522988659375,
       "zero_point": 82,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0026099998595468027,
+      "scale": 0.0026099998595468022,
       "zero_point": 127,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0028868923302458743,
+      "scale": 0.0028868923302458748,
       "zero_point": 105,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0028559526705843855,
+      "scale": 0.002855952670584385,
       "zero_point": 102,
       "offset": 0,
       "n_bits": 8,
@@ -813,7 +813,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003189532879593391,
+      "scale": 0.0031895328795933904,
       "zero_point": 123,
       "offset": 0,
       "n_bits": 8,
@@ -827,7 +827,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002887660690255293,
+      "scale": 0.0028876606902552924,
       "zero_point": 134,
       "offset": 0,
       "n_bits": 8,
@@ -855,7 +855,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002868982412958866,
+      "scale": 0.0028689824129588663,
       "zero_point": 110,
       "offset": 0,
       "n_bits": 8,
@@ -897,7 +897,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002808551174646117,
+      "scale": 0.0028085511746461164,
       "zero_point": 106,
       "offset": 0,
       "n_bits": 8,
@@ -925,7 +925,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0037779740271169818,
+      "scale": 0.003777974027116982,
       "zero_point": 75,
       "offset": 0,
       "n_bits": 8,
@@ -939,7 +939,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0027010800636059354,
+      "scale": 0.002701080063605936,
       "zero_point": 135,
       "offset": 0,
       "n_bits": 8,
@@ -953,7 +953,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0026131089195348184,
+      "scale": 0.002613108919534819,
       "zero_point": 122,
       "offset": 0,
       "n_bits": 8,
@@ -981,7 +981,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.003231609568804149,
+      "scale": 0.0032316095688041495,
       "zero_point": 90,
       "offset": 0,
       "n_bits": 8,
@@ -1016,7 +1016,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002785681555958017,
+      "scale": 0.0027856815559580174,
       "zero_point": 112,
       "offset": 0,
       "n_bits": 8,
@@ -1044,7 +1044,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002430352827257811,
+      "scale": 0.0024303528272578106,
       "zero_point": 120,
       "offset": 0,
       "n_bits": 8,
@@ -1065,7 +1065,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0025809757590456372,
+      "scale": 0.002580975759045638,
       "zero_point": 97,
       "offset": 0,
       "n_bits": 8,
@@ -1079,14 +1079,14 @@
       "is_signed": false
     },
     {
-      "scale": 0.002528964172600195,
+      "scale": 0.0025289641726001953,
       "zero_point": 133,
       "offset": 0,
       "n_bits": 8,
       "is_signed": false
     },
     {
-      "scale": 0.0035286472899122715,
+      "scale": 0.003528647289912271,
       "zero_point": 112,
       "offset": 0,
       "n_bits": 8,
@@ -1121,7 +1121,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0025714066818275736,
+      "scale": 0.002571406681827573,
       "zero_point": 105,
       "offset": 0,
       "n_bits": 8,
@@ -1156,7 +1156,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002832637268254509,
+      "scale": 0.0028326372682545087,
       "zero_point": 96,
       "offset": 0,
       "n_bits": 8,
@@ -1177,7 +1177,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0024850321227837635,
+      "scale": 0.002485032122783764,
       "zero_point": 126,
       "offset": 0,
       "n_bits": 8,
@@ -1198,7 +1198,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0027776502468025966,
+      "scale": 0.002777650246802597,
       "zero_point": 125,
       "offset": 0,
       "n_bits": 8,
@@ -1254,7 +1254,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0027841044705956565,
+      "scale": 0.002784104470595656,
       "zero_point": 116,
       "offset": 0,
       "n_bits": 8,
@@ -1296,7 +1296,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.002956973735988101,
+      "scale": 0.0029569737359881015,
       "zero_point": 96,
       "offset": 0,
       "n_bits": 8,
@@ -1352,7 +1352,7 @@
       "is_signed": false
     },
     {
-      "scale": 0.0034570804587675547,
+      "scale": 0.003457080458767555,
       "zero_point": 113,
       "offset": 0,
       "n_bits": 8,

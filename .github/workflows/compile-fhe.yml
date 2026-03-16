@@ -23,9 +23,28 @@ jobs:
       - name: Compile FHE model
         run: python emotion_ml/fhe/compile_fhe.py
 
-      - name: Upload artifacts
+      - name: Copy artifacts to backend and sidecar
+        run: |
+          cp emotion_ml/artifacts/fhe_model/server.zip journal_backend/fhe_model/server.zip
+          cp emotion_ml/artifacts/fhe_model/client.zip journal_backend/fhe_model/client.zip
+          cp emotion_ml/artifacts/fhe_model/client.zip fhe_client/assets/fhe_model/client.zip
+          cp emotion_ml/artifacts/tfidf_vectorizer.pkl fhe_client/assets/tfidf_vectorizer.pkl
+          cp emotion_ml/artifacts/svd.pkl fhe_client/assets/svd.pkl
+          cp emotion_ml/artifacts/normalizer.pkl fhe_client/assets/normalizer.pkl
+
+      - name: Export Dart assets
+        run: python emotion_ml/export_dart_assets.py
+
+      - name: Upload all deployment artifacts
         uses: actions/upload-artifact@v4
         with:
           name: fhe-model
-          path: emotion_ml/artifacts/fhe_model/
           retention-days: 30
+          path: |
+            emotion_ml/artifacts/fhe_model/server.zip
+            emotion_ml/artifacts/fhe_model/client.zip
+            journal_app/assets/fhe/vocab.json
+            journal_app/assets/fhe/idf_weights.bin
+            journal_app/assets/fhe/svd_components.bin
+            journal_app/assets/fhe/quantization_params.json
+            journal_app/assets/fhe/client.zip
