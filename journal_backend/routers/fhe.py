@@ -15,6 +15,7 @@ import os
 import time
 from pathlib import Path
 
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -48,8 +49,12 @@ def _get_server():
 
 
 # ── In-memory evaluation key store ───────────────────────────────────────────
+# Keys are deserialized on upload and stored as EvaluationKeys objects so that
+# the expensive Cap'n Proto parse (~120 MB) happens once, not on every predict.
 
-_eval_keys: dict[str, bytes] = {}
+import concrete.fhe as fhe
+
+_eval_keys: dict[str, fhe.EvaluationKeys] = {}
 
 
 # ── Request/Response models ──────────────────────────────────────────────────
@@ -74,10 +79,22 @@ class PredictResponse(BaseModel):
 
 @router.post("/key")
 async def upload_evaluation_key(payload: KeyUpload):
-    """Client uploads serialized FHE evaluation keys."""
-    key_size = len(base64.b64decode(payload.evaluation_key_b64))
-    _eval_keys[payload.client_id] = base64.b64decode(payload.evaluation_key_b64)
-    logger.info(f"Evaluation key uploaded for client {payload.client_id} (size: {key_size} bytes)")
+    """Receive and store the client's FHE evaluation key.
+
+    The Dart native client generates a Concrete-compatible Cap'n Proto
+    ServerKeyset on-device (via the Rust FFI bridge) and uploads it here.
+    The private ClientKey never leaves the device.
+
+    Deserialization happens once on upload so the expensive Cap'n Proto parse
+    (~120 MB) does not repeat on every predict call.
+    """
+    raw = base64.b64decode(payload.evaluation_key_b64)
+    logger.info(
+        f"Deserializing evaluation key for client {payload.client_id} "
+        f"({len(raw):,} bytes)..."
+    )
+    _eval_keys[payload.client_id] = fhe.EvaluationKeys.deserialize(raw)
+    logger.info(f"Evaluation key stored for client {payload.client_id}")
     return {"status": "ok"}
 
 
@@ -102,6 +119,13 @@ async def predict(payload: PredictRequest):
     t0 = time.perf_counter()
     encrypted_result = server.run(encrypted_input, eval_keys)
     elapsed = time.perf_counter() - t0
+
+    # server.run() returns a tuple when the circuit has a tfhers_bridge (TFHE-rs
+    # bridge for Dart/Rust client compatibility).  Unwrap to the first element.
+    if isinstance(encrypted_result, tuple):
+        logger.debug(f"server.run() returned {len(encrypted_result)}-element tuple; unwrapping")
+        encrypted_result = encrypted_result[0]
+
     logger.info(f"FHE inference complete in {elapsed:.2f}s. Result size: {len(encrypted_result)} bytes")
 
     return PredictResponse(
