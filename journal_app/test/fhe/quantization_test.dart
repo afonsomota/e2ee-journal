@@ -14,9 +14,9 @@
 // Run with:
 //   cd journal_app && flutter test test/fhe/quantization_test.dart
 
-import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/services.dart';
+import 'package:flutter_concrete/src/client_zip_parser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // ── Quantization helpers (mirrors fhe_helper.py logic) ─────────────────────
@@ -100,18 +100,23 @@ const Map<String, List<double>> _kRefVectors = {
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
-
   // Load quantization params once for all tests.
   late List<Map<String, dynamic>> inputQuantizers;
   late Map<String, dynamic> outputQuantizer;
 
-  setUpAll(() async {
-    final raw = await rootBundle.loadString('assets/fhe/quantization_params.json');
-    final params = json.decode(raw) as Map<String, dynamic>;
-    inputQuantizers = (params['input'] as List)
-        .cast<Map<String, dynamic>>();
-    outputQuantizer = params['output'] as Map<String, dynamic>;
+  setUpAll(() {
+    final zipBytes = File('../journal_app/assets/fhe/client.zip').readAsBytesSync();
+    final qp = ClientZipParser.parse(zipBytes);
+    inputQuantizers = qp.input.map((p) => {
+      'scale': p.scale,
+      'zero_point': p.zeroPoint,
+    }).toList();
+    outputQuantizer = {
+      'scale': qp.output.scale,
+      'zero_point': qp.output.zeroPoint,
+      'offset': qp.output.offset,
+      'n_classes': 5,
+    };
   });
 
   group('quantization_params.json sanity checks', () {
