@@ -1,7 +1,6 @@
 PODS:
   - Flutter (1.0.0)
-  - flutter_concrete (0.0.1):
-    - Flutter
+  - flutter_concrete (0.0.1)
   - flutter_secure_storage (6.0.0):
     - Flutter
   - path_provider_foundation (0.0.1):
@@ -38,7 +37,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_concrete: 491f0deda7fb0f036347108b79264c4b82a1028c
+  flutter_concrete: e5c4c6c6653b05959e685766203fa47fc49cf802
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
