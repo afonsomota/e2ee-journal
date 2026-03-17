@@ -5,7 +5,7 @@
 //   raw int8 model output   → float32 dequantized scores (output quantizer)
 //
 // Reference values were computed by gen_test_vectors.py using the same
-// quantization_params.json that ships with the app.
+// quantization parameters extracted from client.zip.
 //
 // These tests verify:
 //   1. The quantization formula matches Python's UniformQuantizer
@@ -119,7 +119,7 @@ void main() {
     };
   });
 
-  group('quantization_params.json sanity checks', () {
+  group('client.zip quantization sanity checks', () {
     test('has exactly 200 input quantizers', () {
       expect(inputQuantizers.length, equals(200));
     });
