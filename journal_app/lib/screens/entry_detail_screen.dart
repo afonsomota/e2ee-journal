@@ -31,8 +31,14 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final emotion = context.read<EmotionService>();
+      debugPrint('[DetailScreen] postFrameCallback: available=${emotion.available}, '
+          'content.isEmpty=${widget.entry.content.isEmpty}, '
+          'entryId=${widget.entry.id}');
       if (emotion.available && widget.entry.content.isNotEmpty) {
+        debugPrint('[DetailScreen] calling classifyEntry');
         emotion.classifyEntry(widget.entry.id, widget.entry.content);
+      } else {
+        debugPrint('[DetailScreen] NOT calling classifyEntry');
       }
     });
   }

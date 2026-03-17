@@ -2,7 +2,7 @@
 //
 // High-level Dart FHE client.
 //
-// All FHE operations are performed natively via Dart FFI → libfhe_client
+// All FHE operations are performed natively via flutter_concrete plugin
 // (Rust/TFHE-rs).  No Python runtime is required on-device.
 //
 // Flow:
@@ -11,14 +11,13 @@
 //   decryptResult(b64)         → EmotionResult
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
+import 'package:flutter_concrete/flutter_concrete.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/emotion_result.dart';
 import 'vectorizer.dart';
-import 'fhe_native.dart';
 
 /// Emotion label order — must match training config LABELS list.
 const List<String> _kLabels = ['anger', 'joy', 'neutral', 'sadness', 'surprise'];
@@ -28,19 +27,12 @@ const List<String> _kLabels = ['anger', 'joy', 'neutral', 'sadness', 'surprise']
 const _kClientKey = 'fhe_client_key_v2';
 const _kServerKey = 'fhe_server_key_v2';
 
-/// High-level FHE client; owns the [Vectorizer] and [FheNative] instances.
+/// High-level FHE client; owns the [Vectorizer] and [ConcreteClient] instances.
 class FheClient {
   final Vectorizer _vectorizer = Vectorizer();
-  final FheNative  _native     = FheNative();
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
 
-  // Per-feature input quantization params (one per LSA dimension).
-  late List<_QuantParam> _inputParams;
-  // Single output quantization params (for class scores).
-  late _OutputQuantParam _outputParam;
-
-  Uint8List? _clientKey;
-  Uint8List? _serverKey;
+  ConcreteClient? _concrete;
   bool _initialized = false;
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -54,32 +46,40 @@ class FheClient {
   /// Key generation is CPU-intensive (~10–60 s on mobile) and is skipped on
   /// subsequent calls by restoring the persisted keys from secure storage.
   Future<String> setup() async {
-    if (_initialized) return base64Encode(_serverKey!);
+    if (_initialized) return base64Encode(_concrete!.serverKey!);
 
     // Load vectoriser and quantization assets in parallel.
-    await Future.wait([_vectorizer.load(), _loadQuantParams()]);
+    late QuantizationParams quantParams;
+    await Future.wait([
+      _vectorizer.load(),
+      _loadQuantParams().then((p) => quantParams = p),
+    ]);
+
+    _concrete = ConcreteClient(quantParams: quantParams);
 
     // Try to restore previously persisted keys.
     final storedClient = await _secureStorage.read(key: _kClientKey);
     final storedServer = await _secureStorage.read(key: _kServerKey);
 
     if (storedClient != null && storedServer != null) {
-      _clientKey = base64Decode(storedClient);
-      _serverKey = base64Decode(storedServer);
+      _concrete!.restoreKeys(
+        clientKey: base64Decode(storedClient),
+        serverKey: base64Decode(storedServer),
+      );
     } else {
       // Generate a fresh TFHE-rs keypair (CPU-intensive).
-      final result = _native.keygen();
-      _clientKey = result.clientKey;
-      _serverKey = result.serverKey;
+      _concrete!.generateKeys();
 
       await Future.wait([
-        _secureStorage.write(key: _kClientKey, value: base64Encode(_clientKey!)),
-        _secureStorage.write(key: _kServerKey, value: base64Encode(_serverKey!)),
+        _secureStorage.write(
+            key: _kClientKey, value: base64Encode(_concrete!.clientKey!)),
+        _secureStorage.write(
+            key: _kServerKey, value: base64Encode(_concrete!.serverKey!)),
       ]);
     }
 
     _initialized = true;
-    return base64Encode(_serverKey!);
+    return base64Encode(_concrete!.serverKey!);
   }
 
   /// Vectorise [text] (TF-IDF → LSA → L2-norm), quantise to uint8, and
@@ -89,9 +89,8 @@ class FheClient {
   /// `POST /fhe/predict`.
   Future<String> vectorizeAndEncrypt(String text) async {
     _requireInit();
-    final features  = _vectorizer.transform(text);
-    final quantized = _quantizeInputs(features);
-    final ciphertext = _native.encryptU8(_clientKey!, quantized);
+    final features = _vectorizer.transform(text);
+    final ciphertext = _concrete!.quantizeAndEncrypt(features);
     return base64Encode(ciphertext);
   }
 
@@ -103,18 +102,14 @@ class FheClient {
   Future<EmotionResult> decryptResult(String encryptedB64) async {
     _requireInit();
     final ciphertext = base64Decode(encryptedB64);
-    final rawScores  = _native.decryptI8(_clientKey!, Uint8List.fromList(ciphertext));
+    final scores = _concrete!.decryptAndDequantize(Uint8List.fromList(ciphertext));
 
-    // Dequantize: float = (raw + offset - zero_point) * scale
-    final p = _outputParam;
-    int    argmax   = 0;
+    int argmax = 0;
     double maxScore = double.negativeInfinity;
-
-    for (int i = 0; i < rawScores.length; i++) {
-      final score = (rawScores[i] + p.offset - p.zeroPoint) * p.scale;
-      if (score > maxScore) {
-        maxScore = score;
-        argmax   = i;
+    for (int i = 0; i < scores.length; i++) {
+      if (scores[i] > maxScore) {
+        maxScore = scores[i];
+        argmax = i;
       }
     }
 
@@ -122,70 +117,20 @@ class FheClient {
     return EmotionResult(emotion: emotion, confidence: maxScore);
   }
 
-  // ── Quantization ────────────────────────────────────────────────────────────
-
-  Uint8List _quantizeInputs(Float32List features) {
-    assert(
-      features.length == _inputParams.length,
-      'Feature length ${features.length} != quant param length ${_inputParams.length}',
-    );
-    final result = Uint8List(features.length);
-    for (int i = 0; i < features.length; i++) {
-      final p = _inputParams[i];
-      // q = round(float / scale) + zero_point, clamped to uint8 range.
-      final q = (features[i] / p.scale).round() + p.zeroPoint;
-      result[i] = q.clamp(0, 255);
-    }
-    return result;
-  }
-
   // ── Asset loading ──────────────────────────────────────────────────────────
 
-  Future<void> _loadQuantParams() async {
-    final jsonStr = await rootBundle.loadString('assets/fhe/quantization_params.json');
-    final map     = jsonDecode(jsonStr) as Map<String, dynamic>;
-
-    final inputList = map['input'] as List<dynamic>;
-    _inputParams = inputList.map((e) {
-      final m = e as Map<String, dynamic>;
-      return _QuantParam(
-        scale:     (m['scale']      as num).toDouble(),
-        zeroPoint: (m['zero_point'] as num).toInt(),
-      );
-    }).toList();
-
-    final out = map['output'] as Map<String, dynamic>;
-    _outputParam = _OutputQuantParam(
-      scale:     (out['scale']      as num).toDouble(),
-      zeroPoint: (out['zero_point'] as num).toInt(),
-      offset:    (out['offset']     as num).toInt(),
-    );
+  Future<QuantizationParams> _loadQuantParams() async {
+    final jsonStr =
+        await rootBundle.loadString('assets/fhe/quantization_params.json');
+    final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+    return QuantizationParams.fromJson(map);
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────
 
   void _requireInit() {
-    if (!_initialized || _clientKey == null) {
+    if (!_initialized || _concrete == null) {
       throw StateError('FheClient: call setup() before encrypting/decrypting');
     }
   }
-}
-
-// ── Internal value types ───────────────────────────────────────────────────────
-
-class _QuantParam {
-  final double scale;
-  final int    zeroPoint;
-  const _QuantParam({required this.scale, required this.zeroPoint});
-}
-
-class _OutputQuantParam {
-  final double scale;
-  final int    zeroPoint;
-  final int    offset;
-  const _OutputQuantParam({
-    required this.scale,
-    required this.zeroPoint,
-    required this.offset,
-  });
 }

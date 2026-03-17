@@ -9,13 +9,18 @@ An end-to-end encrypted journal app with on-device FHE (Fully Homomorphic Encryp
 ```
 Flutter App (journal_app/)
   │
-  ├── Native Dart FHE Client (lib/fhe/)        ← runs in-process via Dart FFI → Rust/TFHE-rs
-  │     • TF-IDF + LSA vectorization (pure Dart)
-  │     • FHE encrypt (quantize → encrypt → serialize)
-  │     • FHE decrypt (deserialize → decrypt → dequantize → argmax → label)
-  │     • Key gen + persistence (flutter_secure_storage)
+  ├── flutter_concrete plugin (flutter_concrete/)   ← standalone FFI plugin (git submodule)
+  │     • Rust/TFHE-rs native library (built via Cargokit)
+  │     • ConcreteClient: keygen, quantize+encrypt, decrypt+dequantize
+  │     • FheNative: low-level Dart FFI bindings
+  │     • QuantizationParams: input/output quantization
   │
-  └── FastAPI Backend (journal_backend/)        ← cloud server (localhost:8000)
+  ├── App FHE Layer (lib/fhe/)                       ← app-specific orchestration
+  │     • FheClient: setup/vectorizeAndEncrypt/decryptResult
+  │     • Vectorizer: TF-IDF + LSA vectorization (pure Dart)
+  │     • Key persistence (flutter_secure_storage)
+  │
+  └── FastAPI Backend (journal_backend/)             ← cloud server (localhost:8000)
         • Stores opaque ciphertext blobs
         • Runs FHE inference via /fhe/predict
         • Never sees plaintext text or predictions
@@ -60,10 +65,20 @@ Flutter App (journal_app/)
 - `main.py` — mounts all routers, includes FHE router at `/fhe`
 - `requirements.txt` — includes `concrete-ml`
 
+## Flutter Concrete Plugin (`flutter_concrete/`)
+
+Standalone Flutter FFI plugin (git submodule) wrapping TFHE-rs for Concrete ML FHE operations. Native Rust library builds automatically via Cargokit during `flutter build` — no manual build scripts needed.
+
+- `lib/src/concrete_client.dart` — `ConcreteClient`: keygen, quantize+encrypt, decrypt+dequantize
+- `lib/src/fhe_native.dart` — `FheNative`: low-level Dart FFI bindings to `libfhe_client`
+- `lib/src/quantizer.dart` — `QuantizationParams`, `InputQuantParam`, `OutputQuantParam`
+- `lib/flutter_concrete.dart` — barrel export
+- `rust/` — Rust crate (`fhe_client`): TFHE-rs keygen, encrypt, decrypt via C FFI
+- `cargokit/` — Cargokit submodule (irondash/cargokit) for automatic native builds
+
 ## Flutter App (`journal_app/`)
 
-- `lib/fhe/fhe_client.dart` — `FheClient`: high-level Dart FHE client (setup, vectorizeAndEncrypt, decryptResult)
-- `lib/fhe/fhe_native.dart` — `FheNative`: Dart FFI bindings to `libfhe_client` (Rust/TFHE-rs)
+- `lib/fhe/fhe_client.dart` — `FheClient`: high-level orchestration (setup, vectorizeAndEncrypt, decryptResult) using `ConcreteClient` from `flutter_concrete`
 - `lib/fhe/vectorizer.dart` — pure-Dart TF-IDF + LSA + L2-norm vectorizer (loads vocab/SVD from assets)
 - `lib/services/emotion_service.dart` — `EmotionService` (ChangeNotifier), orchestrates the 5-step FHE flow
   - Tracks in-progress classifications via `_inProgress: Set<String>`
@@ -74,13 +89,13 @@ Flutter App (journal_app/)
 - `lib/screens/journal_list_screen.dart` — emotion chip in entry cards
 - `lib/screens/entry_editor_screen.dart` — emotion bar in edit mode
 - `lib/main.dart` — registers `EmotionService` in the provider tree
-- `rust/` — Rust crate (`libfhe_client`) implementing FFI-exported keygen, encrypt, decrypt via TFHE-rs
 
 ## Status
 
 ✅ **Completed:**
 - Full FHE pipeline infrastructure (setup → vectorize → predict → decrypt)
 - ML model training, quantization, and FHE compilation
+- **flutter_concrete plugin** — FHE client extracted to standalone Flutter FFI plugin with Cargokit; no manual build scripts needed
 - **Native Dart FHE client** — Python sidecar replaced by Rust/TFHE-rs via Dart FFI; no Python runtime required on-device
 - Backend FHE inference endpoints implemented with logging
 - UI integration: emotion badges on detail/list/editor screens
@@ -111,14 +126,11 @@ LOG_LEVEL=DEBUG source journal_backend/.venv/bin/activate && cd journal_backend 
 cd journal_app && flutter run
 ```
 
-**Before first Flutter run:** Build the native Rust FHE library (see README for full instructions):
-```bash
-cd journal_app/rust && ./build_ios.sh    # or ./build_android.sh
-```
+**Native Rust library:** Builds automatically via Cargokit during `flutter build` — no manual steps needed. Requires Rust toolchain installed on the build machine.
 
 ## Notes & Dependencies
 
-- **Native FHE client:** All on-device FHE ops (keygen, encrypt, decrypt) run in-process via `libfhe_client` (Rust/TFHE-rs) — no Python runtime or sidecar process required
+- **Native FHE client:** All on-device FHE ops (keygen, encrypt, decrypt) run in-process via `flutter_concrete` plugin (Rust/TFHE-rs, built by Cargokit) — no Python runtime or manual build scripts required
 - **Key persistence:** FHE client/server keypair persisted in `flutter_secure_storage` — expensive keygen (~10–60 s on mobile) is skipped on subsequent launches
 - **Evaluation keys:** Stored in-memory in backend (`_eval_keys` dict) — lost on restart; needs Redis/persistent store for production
 - **FHE model artifacts:** `journal_backend/fhe_model/server.zip` (backend) and `journal_app/assets/fhe/client.zip` (bundled in Flutter app)
@@ -126,3 +138,4 @@ cd journal_app/rust && ./build_ios.sh    # or ./build_android.sh
 - **Dio timeout:** `receiveTimeout: Duration(minutes: 10)` — FHE inference on backend is CPU-intensive
 - **Logging:** Backend uses `LOG_LEVEL` env var (default INFO)
 - **Graceful degradation:** If backend unreachable, `EmotionService.available = false`; auto-recovery via `unawaited(initialize())`
+- Local Python environment is made by uv. So use `uv pip` instead of `pip` and remember to load the respective environment: backend or emotion_ml. They are different.

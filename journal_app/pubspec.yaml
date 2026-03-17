@@ -10,11 +10,12 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # FHE client plugin (native TFHE-rs via Cargokit)
+  flutter_concrete:
+    path: ../flutter_concrete
+
   # HTTP client
   dio: ^5.4.0
-
-  # Dart FFI helpers (malloc, Utf8, etc.) — required by fhe_native.dart
-  ffi: ^2.1.0
 
   # Secure local storage (for private key)
   flutter_secure_storage: ^9.0.0
