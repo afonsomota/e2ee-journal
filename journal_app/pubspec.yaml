@@ -53,4 +53,4 @@ flutter:
     - assets/fhe/vocab.json
     - assets/fhe/idf_weights.bin
     - assets/fhe/svd_components.bin
-    - assets/fhe/quantization_params.json
+    - assets/fhe/client.zip

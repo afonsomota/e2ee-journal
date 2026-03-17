@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Export TF-IDF, SVD, and FHE quantization parameters to portable binary formats
-for use by the native Dart FHE client.
+Export TF-IDF, SVD, and FHE client assets to portable formats
+for use by the Flutter app.
 
 Run once after training:
     python emotion_ml/export_dart_assets.py
@@ -10,13 +10,11 @@ Outputs to journal_app/assets/fhe/:
     vocab.json              — word → index map (str → int)
     idf_weights.bin         — 5000 × float32, little-endian
     svd_components.bin      — 200 × 5000 × float32, little-endian, row-major
-    quantization_params.json — per-feature input scale/zero_point + output params
-    client.zip              — FHE client model (for C wrapper / Python helper)
+    client.zip              — Concrete ML client model (parsed by flutter_concrete plugin)
 """
 
 import json
 import shutil
-import zipfile
 from pathlib import Path
 
 import joblib
@@ -54,46 +52,9 @@ def main() -> None:
         f"svd_components.bin: {components.shape} float32  ({components.nbytes} bytes)"
     )
 
-    # ── 4. quantization_params.json — from client.zip serialized_processing ──
-    with zipfile.ZipFile(CLIENT_ZIP) as z:
-        proc = json.loads(z.read("serialized_processing.json"))
-
-    input_params = []
-    for q in proc["input_quantizers"]:
-        sv = q["serialized_value"]
-        zp = sv["zero_point"]
-        input_params.append(
-            {
-                "scale": float(sv["scale"]["serialized_value"]),
-                "zero_point": int(zp["serialized_value"])
-                if isinstance(zp, dict)
-                else int(zp),
-                "offset": int(sv.get("offset", 0)),
-                "n_bits": int(sv["n_bits"]),
-                "is_signed": bool(sv["is_signed"]),
-            }
-        )
-
-    out_sv = proc["output_quantizers"][0]["serialized_value"]
-    out_zp = out_sv["zero_point"]
-    output_params = {
-        "scale": float(out_sv["scale"]["serialized_value"]),
-        "zero_point": int(out_zp["serialized_value"])
-        if isinstance(out_zp, dict)
-        else int(out_zp),
-        "offset": int(out_sv.get("offset", 0)),
-        "n_bits": int(out_sv["n_bits"]),
-        "is_signed": bool(out_sv["is_signed"]),
-        "n_classes": 5,
-    }
-
-    params = {"input": input_params, "output": output_params}
-    (ASSETS_OUT / "quantization_params.json").write_text(json.dumps(params, indent=2))
-    print(
-        f"quantization_params.json: {len(input_params)} input quantizers, 1 output"
-    )
-
-    # ── 5. client.zip — needed by fhe_helper.py at runtime ───────────────────
+    # ── 4. client.zip — Concrete ML standard artifact ─────────────────────────
+    # Parsed at runtime by flutter_concrete plugin (extracts quantization
+    # params from serialized_processing.json inside the zip).
     shutil.copy2(CLIENT_ZIP, ASSETS_OUT / "client.zip")
     print(f"client.zip        : {(ASSETS_OUT / 'client.zip').stat().st_size} bytes")
 
