@@ -11,14 +11,14 @@ Flutter App (journal_app/)
   │
   ├── flutter_concrete plugin (flutter_concrete/)   ← standalone FFI plugin (git submodule)
   │     • Rust/TFHE-rs native library (built via Cargokit)
-  │     • ConcreteClient: keygen, quantize+encrypt, decrypt+dequantize
+  │     • ConcreteClient: parse client.zip, keygen/restore keys, quantize+encrypt, decrypt+dequantize
   │     • FheNative: low-level Dart FFI bindings
-  │     • QuantizationParams: input/output quantization
+  │     • KeyStorage interface: key persistence abstraction (SecureKeyStorage impl)
+  │     • QuantizationParams: parsed from client.zip (serialized_processing.json)
   │
-  ├── App FHE Layer (lib/fhe/)                       ← app-specific orchestration
-  │     • FheClient: setup/vectorizeAndEncrypt/decryptResult
+  ├── App FHE Layer (lib/fhe/)                       ← app-specific text processing
   │     • Vectorizer: TF-IDF + LSA vectorization (pure Dart)
-  │     • Key persistence (flutter_secure_storage)
+  │     • (No FheClient — EmotionService uses ConcreteClient directly)
   │
   └── FastAPI Backend (journal_backend/)             ← cloud server (localhost:8000)
         • Stores opaque ciphertext blobs
@@ -28,11 +28,12 @@ Flutter App (journal_app/)
 
 ### FHE Flow (orchestrated by Flutter)
 
-1. `FheClient.setup()` → generate/restore TFHE-rs keypair (native Rust, persisted in secure storage)
-2. Dart → backend `POST /fhe/key` → upload evaluation key
-3. `FheClient.vectorizeAndEncrypt(text)` → encrypted feature vector (TF-IDF + LSA + quantize + encrypt, all in-process)
-4. Dart → backend `POST /fhe/predict` → get encrypted result
-5. `FheClient.decryptResult(b64)` → emotion label + confidence (decrypt + dequantize in-process)
+1. `ConcreteClient.setup(clientZipBytes, storage)` → parse client.zip (serialized_processing.json), generate/restore TFHE-rs keypair via KeyStorage
+2. App reads `serverKeyBase64` from `ConcreteClient` → backend `POST /fhe/key` → upload evaluation key
+3. `Vectorizer.transform(text)` → float feature vector (TF-IDF + LSA + L2-norm, pure Dart)
+4. `ConcreteClient.quantizeAndEncrypt(vector)` → encrypted feature vector (quantize + encrypt, in-process)
+5. Dart → backend `POST /fhe/predict` → get encrypted result
+6. `ConcreteClient.decryptAndDequantize(b64)` → raw scores; app does argmax → emotion label + confidence
 
 ## ML Pipeline (`emotion_ml/`)
 
@@ -55,8 +56,7 @@ Flutter App (journal_app/)
 - `emotion_ml/artifacts/normalizer.pkl`
 - `emotion_ml/artifacts/label_encoder.pkl`
 - `journal_backend/fhe_model/server.zip` — loaded by `FHEModelServer`
-- `journal_app/assets/fhe/client.zip` — bundled in Flutter app (loaded by native Rust via FFI)
-- `journal_app/assets/fhe/quantization_params.json` — input/output quantization params for Dart client
+- `journal_app/assets/fhe/client.zip` — bundled in Flutter app; plugin parses `serialized_processing.json` inside zip for quantization params
 
 ## Backend (`journal_backend/`)
 
@@ -69,18 +69,19 @@ Flutter App (journal_app/)
 
 Standalone Flutter FFI plugin (git submodule) wrapping TFHE-rs for Concrete ML FHE operations. Native Rust library builds automatically via Cargokit during `flutter build` — no manual build scripts needed.
 
-- `lib/src/concrete_client.dart` — `ConcreteClient`: keygen, quantize+encrypt, decrypt+dequantize
+- `lib/src/concrete_client.dart` — `ConcreteClient`: parse client.zip, keygen/restore keys, quantizeAndEncrypt, decryptAndDequantize
 - `lib/src/fhe_native.dart` — `FheNative`: low-level Dart FFI bindings to `libfhe_client`
-- `lib/src/quantizer.dart` — `QuantizationParams`, `InputQuantParam`, `OutputQuantParam`
+- `lib/src/quantizer.dart` — `QuantizationParams`, `InputQuantParam`, `OutputQuantParam` (parsed from client.zip)
+- `lib/src/key_storage.dart` — `KeyStorage` interface + `SecureKeyStorage` impl (flutter_secure_storage)
 - `lib/flutter_concrete.dart` — barrel export
 - `rust/` — Rust crate (`fhe_client`): TFHE-rs keygen, encrypt, decrypt via C FFI
 - `cargokit/` — Cargokit submodule (irondash/cargokit) for automatic native builds
 
 ## Flutter App (`journal_app/`)
 
-- `lib/fhe/fhe_client.dart` — `FheClient`: high-level orchestration (setup, vectorizeAndEncrypt, decryptResult) using `ConcreteClient` from `flutter_concrete`
 - `lib/fhe/vectorizer.dart` — pure-Dart TF-IDF + LSA + L2-norm vectorizer (loads vocab/SVD from assets)
-- `lib/services/emotion_service.dart` — `EmotionService` (ChangeNotifier), orchestrates the 5-step FHE flow
+- `lib/services/emotion_service.dart` — `EmotionService` (ChangeNotifier), orchestrates the full FHE flow using `ConcreteClient` directly
+  - Calls `ConcreteClient.setup()`, `Vectorizer.transform()`, `ConcreteClient.quantizeAndEncrypt()`, then `ConcreteClient.decryptAndDequantize()` + argmax
   - Tracks in-progress classifications via `_inProgress: Set<String>`
   - Dio `receiveTimeout` 10 minutes for backend FHE inference
   - Auto-recovery on backend restart
@@ -97,6 +98,7 @@ Standalone Flutter FFI plugin (git submodule) wrapping TFHE-rs for Concrete ML F
 - ML model training, quantization, and FHE compilation
 - **flutter_concrete plugin** — FHE client extracted to standalone Flutter FFI plugin with Cargokit; no manual build scripts needed
 - **Native Dart FHE client** — Python sidecar replaced by Rust/TFHE-rs via Dart FFI; no Python runtime required on-device
+- **Plugin restructure** — flutter_concrete now parses client.zip directly, handles key persistence via KeyStorage interface, owns full FHE lifecycle; FheClient removed from app layer; EmotionService uses ConcreteClient directly
 - Backend FHE inference endpoints implemented with logging
 - UI integration: emotion badges on detail/list/editor screens
 - Flutter `_inProgress` tracking to prevent stuck spinner UI
@@ -131,9 +133,9 @@ cd journal_app && flutter run
 ## Notes & Dependencies
 
 - **Native FHE client:** All on-device FHE ops (keygen, encrypt, decrypt) run in-process via `flutter_concrete` plugin (Rust/TFHE-rs, built by Cargokit) — no Python runtime or manual build scripts required
-- **Key persistence:** FHE client/server keypair persisted in `flutter_secure_storage` — expensive keygen (~10–60 s on mobile) is skipped on subsequent launches
+- **Key persistence:** Handled by the plugin via the `KeyStorage` interface (`SecureKeyStorage` impl uses `flutter_secure_storage`) — expensive keygen (~10–60 s on mobile) is skipped on subsequent launches; app passes a `KeyStorage` instance to `ConcreteClient.setup()`
 - **Evaluation keys:** Stored in-memory in backend (`_eval_keys` dict) — lost on restart; needs Redis/persistent store for production
-- **FHE model artifacts:** `journal_backend/fhe_model/server.zip` (backend) and `journal_app/assets/fhe/client.zip` (bundled in Flutter app)
+- **FHE model artifacts:** `journal_backend/fhe_model/server.zip` (backend) and `journal_app/assets/fhe/client.zip` (bundled in Flutter app); quantization params are parsed by the plugin from `serialized_processing.json` inside client.zip — no separate `quantization_params.json` needed
 - **UI state tracking:** `EmotionService._inProgress: Set<String>` prevents stuck spinner; `isClassifying(entryId)` checks if classification is running
 - **Dio timeout:** `receiveTimeout: Duration(minutes: 10)` — FHE inference on backend is CPU-intensive
 - **Logging:** Backend uses `LOG_LEVEL` env var (default INFO)
