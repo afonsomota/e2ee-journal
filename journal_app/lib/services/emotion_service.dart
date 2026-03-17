@@ -14,6 +14,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as dev;
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -44,6 +45,9 @@ class EmotionService extends ChangeNotifier {
   final Map<String, EmotionResult> _cache = {};
   final Set<String> _inProgress = {};
   final Map<String, String> _pendingRetry = {};
+  final Map<String, int> _retryCount = {};
+
+  static const int _maxRetries = 2;
 
   bool get available => _available;
   EmotionResult? cached(String entryId) => _cache[entryId];
@@ -138,26 +142,55 @@ class EmotionService extends ChangeNotifier {
         base64Decode(encryptedResultB64),
       );
 
-      // 5. Interpret (app-specific: argmax)
+      // 5. Interpret (app-specific: argmax + softmax confidence)
+      dev.log('[EmotionService] classifyEntry($entryId): raw scores=$scores');
+      dev.log('[EmotionService] classifyEntry($entryId): '
+          'features[0..9]=${features.sublist(0, math.min(10, features.length))}');
+
       int maxIdx = 0;
       for (int i = 1; i < scores.length; i++) {
         if (scores[i] > scores[maxIdx]) maxIdx = i;
       }
       final emotion = maxIdx < _kLabels.length ? _kLabels[maxIdx] : 'neutral';
-      final result = EmotionResult(emotion: emotion, confidence: scores[maxIdx]);
+
+      // Softmax to convert raw logits to probabilities
+      final maxScore = scores.reduce(math.max);
+      double expSum = 0.0;
+      final exps = Float64List(scores.length);
+      for (int i = 0; i < scores.length; i++) {
+        exps[i] = math.exp(scores[i] - maxScore);
+        expSum += exps[i];
+      }
+      final confidence = exps[maxIdx] / expSum;
+
+      dev.log('[EmotionService] classifyEntry($entryId): '
+          'softmax=${List.generate(scores.length, (i) => '${_kLabels[i]}:${(exps[i] / expSum).toStringAsFixed(3)}')}');
+
+      final result = EmotionResult(emotion: emotion, confidence: confidence);
 
       _cache[entryId] = result;
       _inProgress.remove(entryId);
+      _retryCount.remove(entryId);
       dev.log('[EmotionService] classifyEntry($entryId): done → ${result.emotion} (${result.confidence})');
       notifyListeners();
       return result;
     } catch (e) {
       dev.log('[EmotionService] classifyEntry($entryId): error: $e');
       _inProgress.remove(entryId);
-      _pendingRetry[entryId] = plaintext;
-      _initialized = false;
-      _available = false;
-      unawaited(initialize());
+
+      final retries = _retryCount[entryId] ?? 0;
+      if (retries < _maxRetries) {
+        _retryCount[entryId] = retries + 1;
+        _pendingRetry[entryId] = plaintext;
+        dev.log('[EmotionService] classifyEntry($entryId): will retry (${retries + 1}/$_maxRetries)');
+        _initialized = false;
+        _available = false;
+        unawaited(initialize());
+      } else {
+        dev.log('[EmotionService] classifyEntry($entryId): max retries reached, giving up');
+        _retryCount.remove(entryId);
+      }
+
       notifyListeners();
       return null;
     }
