@@ -1,32 +1,37 @@
 // services/emotion_service.dart
 //
-// Orchestrates the FHE emotion classification flow.
-//
-// All FHE operations (vectorization, encryption, decryption) are performed
-// in-process by FheClient via Dart FFI → libfhe_client (native Rust/TFHE-rs).
-// No Python runtime is required on-device.
+// Orchestrates FHE emotion classification.
 //
 // Flow:
-//   1. FheClient.setup()             → server/eval key (base64)
-//   2. POST backend /fhe/key         → upload eval key to backend
-//   3. FheClient.vectorizeAndEncrypt → encrypted feature vector (base64)
-//   4. POST backend /fhe/predict     → encrypted result (base64)
-//   5. FheClient.decryptResult       → EmotionResult
+//   1. ConcreteClient.setup()        → parse client.zip, generate/restore keys
+//   2. POST /fhe/key                 → upload eval key to backend
+//   3. Vectorizer.transform()        → Float32 feature vector
+//   4. ConcreteClient.quantizeAndEncrypt() → encrypted features
+//   5. POST /fhe/predict             → encrypted result
+//   6. ConcreteClient.decryptAndDequantize() → float scores
+//   7. argmax                        → EmotionResult
 
 import 'dart:async';
-import 'package:flutter/foundation.dart';
-import 'package:dio/dio.dart';
+import 'dart:convert';
+import 'dart:developer' as dev;
+import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_concrete/flutter_concrete.dart';
+
+import '../fhe/vectorizer.dart';
 import '../models/emotion_result.dart';
-import '../fhe/fhe_client.dart';
+import 'secure_key_storage.dart';
+
+/// Emotion label order — must match training config LABELS list.
+const List<String> _kLabels = ['anger', 'joy', 'neutral', 'sadness', 'surprise'];
 
 class EmotionService extends ChangeNotifier {
-  // Native FHE client (replaces the Python sidecar HTTP calls)
-  final FheClient _fheClient = FheClient();
+  final ConcreteClient _concrete = ConcreteClient();
+  final Vectorizer _vectorizer = Vectorizer();
 
-  // Backend server (FHE inference)
-  // FHE inference is CPU-intensive and can take several minutes — use a
-  // generous receiveTimeout so we don't cut off a running computation.
   final Dio _backend = Dio(BaseOptions(
     baseUrl: 'http://localhost:8000',
     connectTimeout: const Duration(seconds: 60),
@@ -37,44 +42,50 @@ class EmotionService extends ChangeNotifier {
   bool _initialized = false;
   bool _available = false;
 
-  // In-memory cache: entryId → EmotionResult
   final Map<String, EmotionResult> _cache = {};
-  // Tracks entries currently being classified (to distinguish "loading" from "failed")
   final Set<String> _inProgress = {};
-  // Entries that failed due to backend unavailability — retried after recovery
-  final Map<String, String> _pendingRetry = {}; // entryId → plaintext
+  final Map<String, String> _pendingRetry = {};
 
   bool get available => _available;
   EmotionResult? cached(String entryId) => _cache[entryId];
   bool isClassifying(String entryId) => _inProgress.contains(entryId);
 
-  /// Initialize FHE keys. Call once after app startup.
+  /// Initialize FHE keys and upload eval key to backend.
   Future<void> initialize() async {
     if (_initialized) {
-      debugPrint('[EmotionService] already initialized, skipping');
+      dev.log('[EmotionService] already initialized, skipping');
       return;
     }
     try {
-      // 1. Setup native FHE client → get server/evaluation key
-      debugPrint('[EmotionService] starting FHE setup (keygen or restore)...');
-      final evalKeyB64 = await _fheClient.setup();
-      _clientId = 'dart-fhe-client';
-      debugPrint('[EmotionService] FHE setup complete, uploading eval key to backend...');
+      dev.log('[EmotionService] starting FHE setup...');
 
-      // 2. Upload evaluation key to backend (private client key stays on-device).
+      // 1. Load vectorizer + setup FHE client in parallel
+      final zipData = await rootBundle.load('assets/fhe/client.zip');
+      await Future.wait([
+        _vectorizer.load(),
+        _concrete.setup(
+          clientZipBytes: zipData.buffer.asUint8List(),
+          storage: SecureKeyStorage(),
+        ),
+      ]);
+
+      _clientId = 'dart-fhe-client';
+      dev.log('[EmotionService] FHE setup complete, uploading eval key...');
+
+      // 2. Upload evaluation key to backend
       await _backend.post('/fhe/key', data: {
         'client_id': _clientId,
-        'evaluation_key_b64': evalKeyB64,
+        'evaluation_key_b64': _concrete.serverKeyBase64,
       });
 
       _initialized = true;
       _available = true;
-      debugPrint('[EmotionService] initialized successfully (available=true)');
+      dev.log('[EmotionService] initialized successfully');
       notifyListeners();
 
-      // Retry any classifications that failed while the backend was down.
+      // Retry pending classifications
       if (_pendingRetry.isNotEmpty) {
-        debugPrint('[EmotionService] retrying ${_pendingRetry.length} pending classifications');
+        dev.log('[EmotionService] retrying ${_pendingRetry.length} pending');
         final toRetry = Map<String, String>.from(_pendingRetry);
         _pendingRetry.clear();
         for (final entry in toRetry.entries) {
@@ -82,24 +93,23 @@ class EmotionService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      // FHE client or backend unavailable — degrade gracefully
-      debugPrint('[EmotionService] initialize failed: $e');
+      dev.log('[EmotionService] initialize failed: $e');
       _available = false;
     }
   }
 
-  /// Classify a decrypted journal entry via FHE.
+  /// Classify a journal entry via FHE.
   Future<EmotionResult?> classifyEntry(String entryId, String plaintext) async {
     if (_cache.containsKey(entryId)) {
-      debugPrint('[EmotionService] classifyEntry($entryId): cached, returning');
+      dev.log('[EmotionService] classifyEntry($entryId): cached');
       return _cache[entryId];
     }
     if (!_available || !_initialized) {
-      debugPrint('[EmotionService] classifyEntry($entryId): skipped (available=$_available, initialized=$_initialized)');
+      dev.log('[EmotionService] classifyEntry($entryId): skipped (available=$_available, initialized=$_initialized)');
       return null;
     }
     if (_inProgress.contains(entryId)) {
-      debugPrint('[EmotionService] classifyEntry($entryId): already in progress');
+      dev.log('[EmotionService] classifyEntry($entryId): already in progress');
       return null;
     }
 
@@ -107,32 +117,44 @@ class EmotionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Vectorize + encrypt (native Dart FHE client)
-      debugPrint('[EmotionService] classifyEntry($entryId): vectorizing + encrypting...');
-      final encryptedVectorB64 = await _fheClient.vectorizeAndEncrypt(plaintext);
-      debugPrint('[EmotionService] classifyEntry($entryId): encrypted, posting to /fhe/predict...');
+      // 1. Vectorize (app-specific)
+      dev.log('[EmotionService] classifyEntry($entryId): vectorizing + encrypting...');
+      final features = _vectorizer.transform(plaintext);
 
-      // 2. FHE inference (backend)
+      // 2. Encrypt (plugin)
+      final ciphertext = _concrete.quantizeAndEncrypt(features);
+
+      // 3. Send to server
+      dev.log('[EmotionService] classifyEntry($entryId): posting to /fhe/predict...');
       final predResp = await _backend.post('/fhe/predict', data: {
         'client_id': _clientId,
-        'encrypted_input_b64': encryptedVectorB64,
+        'encrypted_input_b64': base64Encode(ciphertext),
       });
       final encryptedResultB64 =
           predResp.data['encrypted_result_b64'] as String;
-      debugPrint('[EmotionService] classifyEntry($entryId): got encrypted result, decrypting...');
 
-      // 3. Decrypt (native Dart FHE client)
-      final result = await _fheClient.decryptResult(encryptedResultB64);
+      // 4. Decrypt (plugin)
+      dev.log('[EmotionService] classifyEntry($entryId): decrypting...');
+      final scores = _concrete.decryptAndDequantize(
+        base64Decode(encryptedResultB64),
+      );
+
+      // 5. Interpret (app-specific: argmax)
+      int maxIdx = 0;
+      for (int i = 1; i < scores.length; i++) {
+        if (scores[i] > scores[maxIdx]) maxIdx = i;
+      }
+      final emotion = maxIdx < _kLabels.length ? _kLabels[maxIdx] : 'neutral';
+      final result = EmotionResult(emotion: emotion, confidence: scores[maxIdx]);
+
       _cache[entryId] = result;
       _inProgress.remove(entryId);
-      debugPrint('[EmotionService] classifyEntry($entryId): done → ${result.emotion} (${result.confidence})');
+      dev.log('[EmotionService] classifyEntry($entryId): done → ${result.emotion} (${result.confidence})');
       notifyListeners();
       return result;
     } catch (e) {
-      debugPrint('[EmotionService] classifyEntry($entryId): error: $e');
+      dev.log('[EmotionService] classifyEntry($entryId): error: $e');
       _inProgress.remove(entryId);
-      // If the backend lost our eval key (e.g. it was restarted), reset so
-      // the next classify attempt re-runs initialize() and re-uploads the key.
       _pendingRetry[entryId] = plaintext;
       _initialized = false;
       _available = false;
