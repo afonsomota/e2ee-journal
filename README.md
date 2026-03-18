@@ -2,6 +2,24 @@
 
 A Flutter + FastAPI journal app with end-to-end encryption and sharing.
 
+For the initial blog post steps, you can checkout the individual step:
+
+```bash
+git checkout step-3
+```
+
+To see what changed between any two steps:
+
+```bash
+git diff step-3..step-4
+```
+
+To return to the default branch after exploring:
+
+```bash
+git checkout main
+```
+
 ## Running the App
 
 ### Backend
