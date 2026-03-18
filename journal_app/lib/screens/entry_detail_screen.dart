@@ -1,17 +1,17 @@
 // screens/entry_detail_screen.dart
 //
 // Shows a single entry and (for owned entries) the sharing UI.
-// [Step6] The share dialog is where the magic of key re-encryption happens
-//         behind the scenes.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/journal_entry.dart';
 import '../services/journal_service.dart';
+import '../models/emotion_result.dart';
+import '../services/emotion_service.dart';
 import 'entry_editor_screen.dart';
 
-class EntryDetailScreen extends StatelessWidget {
+class EntryDetailScreen extends StatefulWidget {
   final JournalEntry entry;
   final bool isOwned;
 
@@ -22,8 +22,32 @@ class EntryDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<EntryDetailScreen> createState() => _EntryDetailScreenState();
+}
+
+class _EntryDetailScreenState extends State<EntryDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final emotion = context.read<EmotionService>();
+      debugPrint('[DetailScreen] postFrameCallback: available=${emotion.available}, '
+          'content.isEmpty=${widget.entry.content.isEmpty}, '
+          'entryId=${widget.entry.id}');
+      if (emotion.available && widget.entry.content.isNotEmpty) {
+        debugPrint('[DetailScreen] calling classifyEntry');
+        emotion.classifyEntry(widget.entry.id, widget.entry.content);
+      } else {
+        debugPrint('[DetailScreen] NOT calling classifyEntry');
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final entry = widget.entry;
+    final isOwned = widget.isOwned;
 
     return Scaffold(
       appBar: AppBar(
@@ -72,9 +96,9 @@ class EntryDetailScreen extends StatelessWidget {
                 Text(
                   entry.encryptedBlob != null
                       ? entry.encryptedContentKey != null
-                          ? 'Hybrid E2EE (Step 5+)'
-                          : 'Symmetric E2EE (Step 3)'
-                      : 'No encryption (Step 1)',
+                          ? 'Hybrid E2EE'
+                          : 'Symmetric E2EE'
+                      : 'No encryption',
                   style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey.shade600,
@@ -88,7 +112,28 @@ class EntryDetailScreen extends StatelessWidget {
               ],
             ),
 
-            // Shared-with list [Step6]
+            // Emotion badge
+            Consumer<EmotionService>(
+              builder: (_, emotion, __) {
+                if (!emotion.available) return const SizedBox.shrink();
+                final result = emotion.cached(entry.id);
+                if (result != null) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: _EmotionBadge(result: result),
+                  );
+                }
+                if (emotion.isClassifying(entry.id)) {
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: _EmotionBadgeLoading(),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+
+            // Shared-with list
             if (isOwned && entry.sharedWith.isNotEmpty) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -122,35 +167,31 @@ class EntryDetailScreen extends StatelessWidget {
     );
   }
 
-  // ── Step 6: Share dialog ───────────────────────────────────────────────────
-  //
-  // BLOG NOTE: From the user's perspective, they just type a username and tap
-  // Share.  Behind the scenes, JournalService:
-  //   1. Fetches the recipient's public key from the server.
-  //   2. Decrypts the content key with our private key.
-  //   3. Re-encrypts it with the recipient's public key.
-  //   4. Posts only the new key blob — the encrypted body never changes.
-
   Future<void> _showShareDialog(BuildContext context) async {
+    final isEncrypted = widget.entry.encryptedContentKey != null;
     final ctrl = TextEditingController();
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.lock_outline, size: 20),
-            SizedBox(width: 8),
-            Text('Share Entry'),
+            Icon(isEncrypted ? Icons.lock_outline : Icons.lock_open,
+                size: 20),
+            const SizedBox(width: 8),
+            const Text('Share Entry'),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'The entry content key will be re-encrypted with the recipient\'s '
-              'public key. The server cannot read either.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+            Text(
+              isEncrypted
+                  ? 'The entry content key will be re-encrypted with the '
+                    'recipient\'s public key. The server cannot read either.'
+                  : 'This is a standard entry. The recipient will be able to '
+                    'read it directly.',
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -180,7 +221,7 @@ class EntryDetailScreen extends StatelessWidget {
 
     if (result != null && result.isNotEmpty && context.mounted) {
       final journal = context.read<JournalService>();
-      await journal.shareEntry(entry.id, result);
+      await journal.shareEntry(widget.entry.id, result);
       if (context.mounted && journal.error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -221,12 +262,99 @@ class EntryDetailScreen extends StatelessWidget {
     );
 
     if (confirmed == true && context.mounted) {
-      await context.read<JournalService>().deleteEntry(entry.id);
+      await context.read<JournalService>().deleteEntry(widget.entry.id);
       if (context.mounted) Navigator.pop(context);
     }
   }
 
   String _formatDate(DateTime dt) {
     return '${dt.day}/${dt.month}/${dt.year} ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+// ── Emotion badge widgets ──────────────────────────────────────────────────
+
+class _EmotionBadgeLoading extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 12,
+          height: 12,
+          child: CircularProgressIndicator(
+            strokeWidth: 1.5,
+            color: Colors.grey.shade400,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(
+          'Analysing emotion…',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmotionBadge extends StatelessWidget {
+  final EmotionResult result;
+  const _EmotionBadge({required this.result});
+
+  static const _emoji = {
+    'anger': '😠',
+    'joy': '😊',
+    'neutral': '😐',
+    'sadness': '😢',
+    'surprise': '😮',
+  };
+
+  static const Map<String, MaterialColor> _color = {
+    'anger': Colors.red,
+    'joy': Colors.amber,
+    'neutral': Colors.blueGrey,
+    'sadness': Colors.indigo,
+    'surprise': Colors.purple,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final emoji = _emoji[result.emotion] ?? '🤔';
+    final color = _color[result.emotion] ?? Colors.grey;
+    final pct = (result.confidence * 100).toStringAsFixed(0);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.shade50,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.shade200),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            result.emotion,
+            style: TextStyle(
+              fontSize: 12,
+              color: color.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            '$pct%',
+            style: TextStyle(fontSize: 11, color: color.shade400),
+          ),
+          const SizedBox(width: 6),
+          Tooltip(
+            message: 'Detected via on-device FHE — the server never sees your text',
+            child: Icon(Icons.shield_outlined, size: 12, color: color.shade400),
+          ),
+        ],
+      ),
+    );
   }
 }

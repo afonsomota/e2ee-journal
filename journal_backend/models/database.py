@@ -2,25 +2,25 @@
 #
 # SQLite via aiosqlite for simplicity.  In production: PostgreSQL + asyncpg.
 #
+# Schema is managed by Alembic (see alembic/ directory).
+# The declarative models live in models/tables.py.
+#
 # Schema notes:
 #
-#  users.encrypted_private_key — opaque blob to the server. [Step4]
-#  users.public_key             — distributed openly. [Step4]
+#  users.encrypted_private_key — opaque blob to the server.
+#  users.public_key             — distributed openly.
 #
-#  entries.content              — used in Steps 1 and 2 only.
-#  entries.encrypted_blob       — ciphertext of entry body. [Step3+]
-#  entries.encrypted_content_key— content key encrypted for the author. [Step5+]
+#  entries.encrypted_blob       — ciphertext of entry body.
+#  entries.encrypted_content_key— content key encrypted for the author.
 #
-#  shares                       — one row per (entry, recipient). [Step6]
+#  shares                       — one row per (entry, recipient).
 #  shares.encrypted_content_key — content key encrypted for the recipient.
-#
-# BLOG NOTE (Step 2): Server-side encryption at rest would be implemented at
-# the database/storage layer (e.g. SQLCipher, AWS RDS encryption).  The schema
-# is identical; the difference is the database engine transparently encrypts
-# the file on disk.  The server can still read the plaintext at query time.
+
+import os
 
 import aiosqlite
-import os
+from alembic import command
+from alembic.config import Config
 
 DB_PATH = os.getenv("DB_PATH", "journal.db")
 
@@ -32,48 +32,11 @@ async def get_db():
         yield db
 
 
+def run_migrations():
+    """Run Alembic migrations to bring the database up to date."""
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
+
 async def init_db():
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.executescript("""
-            CREATE TABLE IF NOT EXISTS users (
-                id                    TEXT PRIMARY KEY,
-                username              TEXT UNIQUE NOT NULL,
-                password_hash         TEXT NOT NULL,
-                -- [Step4] Public key stored openly; server can distribute it.
-                public_key            TEXT,
-                -- [Step4] Private key encrypted with Argon2-derived key.
-                --         Server stores the blob but cannot decrypt it.
-                encrypted_private_key TEXT,
-                created_at            TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS entries (
-                id                    TEXT PRIMARY KEY,
-                author_id             TEXT NOT NULL REFERENCES users(id),
-                -- [Step1/2] Plaintext content — used only in Steps 1 and 2.
-                content               TEXT,
-                -- [Step3+] Encrypted body. Server cannot read this.
-                encrypted_blob        TEXT,
-                -- [Step5+] Content key encrypted for the author.
-                --          Server cannot read this either.
-                encrypted_content_key TEXT,
-                created_at            TEXT NOT NULL DEFAULT (datetime('now')),
-                updated_at            TEXT NOT NULL DEFAULT (datetime('now'))
-            );
-
-            CREATE TABLE IF NOT EXISTS shares (
-                id                    TEXT PRIMARY KEY,
-                entry_id              TEXT NOT NULL REFERENCES entries(id) ON DELETE CASCADE,
-                recipient_id          TEXT NOT NULL REFERENCES users(id),
-                -- [Step6] Content key re-encrypted for the recipient.
-                --         Neither the server nor any other user can read this.
-                encrypted_content_key TEXT NOT NULL,
-                created_at            TEXT NOT NULL DEFAULT (datetime('now')),
-                UNIQUE(entry_id, recipient_id)
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_entries_author ON entries(author_id);
-            CREATE INDEX IF NOT EXISTS idx_shares_recipient ON shares(recipient_id);
-            CREATE INDEX IF NOT EXISTS idx_shares_entry ON shares(entry_id);
-        """)
-        await db.commit()
+    run_migrations()

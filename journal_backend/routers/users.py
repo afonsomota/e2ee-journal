@@ -1,13 +1,13 @@
 # routers/users.py
 #
-# [Step4+] Public key distribution.
+# Public key distribution.
 #
 # BLOG NOTE: This endpoint is the trust boundary.
 # A malicious server could return a different public key than the one the user
 # registered with.  The client would then encrypt the content key for the
 # attacker, who could decrypt it.
 #
-# Mitigations (not implemented here):
+# TODO: Mitigations (not implemented here):
 #   • Key transparency log: every public key upload is appended to an
 #     append-only audit log.  Anyone can verify a key hasn't been swapped.
 #   • Out-of-band fingerprint verification: users compare key fingerprints
@@ -18,8 +18,10 @@
 from fastapi import APIRouter, HTTPException, Depends
 from models.database import get_db
 from routers.auth import current_user
+from log import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 @router.get("/{username}/public-key")
@@ -33,18 +35,21 @@ async def get_public_key(
     Used by the sharing flow: Alice fetches Bob's public key before
     re-encrypting the content key for him.
     """
+    logger.debug(f"Fetching public key for user {username} (requested by {user['username']})")
     async with db.execute(
         "SELECT username, public_key FROM users WHERE username = ?", (username,)
     ) as cur:
         row = await cur.fetchone()
 
     if row is None:
+        logger.warning(f"Public key lookup failed: user '{username}' not found")
         raise HTTPException(status_code=404, detail="User not found")
 
     if row["public_key"] is None:
+        logger.warning(f"Public key lookup failed: user '{username}' has no public key")
         raise HTTPException(
             status_code=404,
-            detail="User has no public key (pre-Step 4 account)",
+            detail="User has no public key",
         )
 
     return {
@@ -55,6 +60,7 @@ async def get_public_key(
 
 @router.get("/me")
 async def get_me(user=Depends(current_user)):
+    logger.debug(f"Fetching profile for user {user['username']}")
     return {
         "id": user["id"],
         "username": user["username"],

@@ -10,10 +10,12 @@ import os
 from datetime import datetime, timedelta
 
 from models.database import get_db
+from log import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
-JWT_SECRET = os.getenv("JWT_SECRET", "change-me-in-production")
+JWT_SECRET = os.getenv("JWT_SECRET", "default-dev-secret-key-32-bytes!!!")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24 * 7  # 1 week
 
@@ -23,7 +25,6 @@ JWT_EXPIRY_HOURS = 24 * 7  # 1 week
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)
     password: str = Field(..., min_length=8)
-    # [Step4] Optional — only present from Step 4 onward.
     public_key: Optional[str] = None
     encrypted_private_key: Optional[str] = None
 
@@ -84,17 +85,19 @@ async def current_user(
 
 @router.post("/register", response_model=AuthResponse)
 async def register(req: RegisterRequest, db=Depends(get_db)):
+    logger.info(f"Register request for username: {req.username}")
     # Check username uniqueness.
     async with db.execute(
         "SELECT id FROM users WHERE username = ?", (req.username,)
     ) as cur:
         if await cur.fetchone():
+            logger.warning(f"Register failed: username '{req.username}' already taken")
             raise HTTPException(status_code=409, detail="Username already taken")
 
     user_id = str(uuid.uuid4())
     # bcrypt the password for server-side authentication.
-    # BLOG NOTE: This is completely separate from the client-side Argon2
-    # derivation.  The server bcrypts for auth; the client Argon2s for crypto.
+    # This is completely separate from the client-side Argon2 derivation.
+    # The server bcrypts for auth; the client Argon2s for crypto.
     password_hash = bcrypt.hashpw(
         req.password.encode(), bcrypt.gensalt(rounds=12)
     ).decode()
@@ -107,13 +110,14 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
             user_id,
             req.username,
             password_hash,
-            req.public_key,            # [Step4] None in Steps 1-3
-            req.encrypted_private_key, # [Step4] None in Steps 1-3
+            req.public_key,
+            req.encrypted_private_key,
         ),
     )
     await db.commit()
 
     token = _create_token(user_id, req.username)
+    logger.info(f"User registered successfully: {req.username} (id: {user_id})")
     return {
         "access_token": token,
         "user": {
@@ -127,6 +131,7 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
 
 @router.post("/login", response_model=AuthResponse)
 async def login(req: LoginRequest, db=Depends(get_db)):
+    logger.info(f"Login request for username: {req.username}")
     async with db.execute(
         "SELECT * FROM users WHERE username = ?", (req.username,)
     ) as cur:
@@ -135,12 +140,14 @@ async def login(req: LoginRequest, db=Depends(get_db)):
     if row is None or not bcrypt.checkpw(
         req.password.encode(), row["password_hash"].encode()
     ):
+        logger.warning(f"Login failed for username: {req.username}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = _create_token(row["id"], row["username"])
+    logger.info(f"Login successful for user: {req.username}")
     return {
         "access_token": token,
-        # [Step4] Return the encrypted private key blob so the client can
+        # Return the encrypted private key blob so the client can
         # decrypt it locally.  The server never decrypts this itself.
         "user": {
             "id": row["id"],
