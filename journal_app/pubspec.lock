@@ -236,7 +236,7 @@ packages:
       path: "../flutter_concrete"
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.1.1"
   flutter_lints:
     dependency: "direct dev"
     description:
