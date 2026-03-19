@@ -233,9 +233,11 @@ packages:
   flutter_concrete:
     dependency: "direct main"
     description:
-      path: "../flutter_concrete"
-      relative: true
-    source: path
+      path: "."
+      ref: HEAD
+      resolved-ref: f90ff012d6d243a2500ed6f5a568589d2c78bba7
+      url: "https://github.com/afonsomota/flutter_concrete.git"
+    source: git
     version: "0.1.1"
   flutter_lints:
     dependency: "direct dev"
