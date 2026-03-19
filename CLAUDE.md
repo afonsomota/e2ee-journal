@@ -39,9 +39,15 @@ Flutter App (journal_app/)
 
 **Dataset:** GoEmotions (Google), mapped to 5 Ekman classes: `anger`, `joy`, `neutral`, `sadness`, `surprise`
 
-**Pipeline:** TF-IDF (5000 features, 1-2 grams) → LSA/TruncatedSVD (200 components) → L2 normalize → XGBClassifier (FHE-compatible)
+**Pipeline:** TF-IDF (5000 features, 1-2 grams) → LSA/TruncatedSVD (50 components) → L2 normalize → XGBClassifier (FHE-compatible)
 
-**Why XGBoost instead of Logistic Regression:** Concrete-ML's `LogisticRegression` has issues with the LR setup (multi-class / regularization config) that caused compilation/accuracy problems. XGBoost (`concrete.ml.sklearn.XGBClassifier`) compiles cleanly to FHE circuit with `n_bits=8`.
+**Why XGBoost instead of Logistic Regression:** Concrete-ML's `LogisticRegression` has issues with the LR setup (multi-class / regularization config) that caused compilation/accuracy problems. XGBoost (`concrete.ml.sklearn.XGBClassifier`) compiles cleanly to FHE circuit.
+
+**CiphertextFormat limitation:** Concrete ML supports two ciphertext formats:
+- `CiphertextFormat.CONCRETE` (default) — works with any `n_bits` value (e.g. 3), produces smaller/faster circuits, but requires the Python `FHEModelClient` for encryption/decryption.
+- `CiphertextFormat.TFHE_RS` — required for native TFHE-rs clients (like flutter_concrete's Rust FFI), but **hard-requires `n_bits=8`** (enforced in `concrete.ml.sklearn.base.py` line 621), producing much larger circuits and slower inference.
+
+**Current state:** We compile with `CiphertextFormat.CONCRETE` and `n_bits=3` for practical circuit sizes. The flutter_concrete plugin currently only speaks TFHE-rs wire format. **To close the gap, flutter_concrete needs to add support for Concrete's native ciphertext format** (serialization via `concrete-python`'s `Value` type instead of raw TFHE-rs `FheUint8`/`FheInt8`). Until then, end-to-end FHE works only via the Python `FHEModelClient`/`FHEModelServer` protocol.
 
 **Key files:**
 - `emotion_ml/config.py` — all hyperparameters and label mapping
@@ -111,6 +117,7 @@ Standalone Flutter FFI plugin (git submodule) wrapping TFHE-rs for Concrete ML F
 
 ⚡ **Future:**
 - Persistent evaluation key store (Redis) for production
+- **flutter_concrete: support `CiphertextFormat.CONCRETE`** — currently the plugin only handles TFHE-rs wire format, which forces `n_bits=8` and makes circuits impractically large. Supporting Concrete's native format would allow `n_bits=3` end-to-end (see limitation note in ML Pipeline section)
 
 ## Running Locally
 
