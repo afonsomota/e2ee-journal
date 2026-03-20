@@ -1,3 +1,3 @@
 [submodule "flutter_concrete"]
 	path = flutter_concrete
-	url = ./flutter_concrete
+	url = https://github.com/afonsomota/flutter_concrete.git

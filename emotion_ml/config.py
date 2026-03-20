@@ -57,14 +57,14 @@ TFIDF_NGRAM_RANGE = (1, 2)
 
 # ── LSA (TruncatedSVD) ───────────────────────────────────────────────────────
 
-LSA_N_COMPONENTS = 200
+LSA_N_COMPONENTS = 50
 
 # ── XGBoost ───────────────────────────────────────────────────────────────────
 
-XGB_N_ESTIMATORS = 200
+XGB_N_ESTIMATORS = 50
 XGB_MAX_DEPTH = 3
 
 # ── FHE ───────────────────────────────────────────────────────────────────────
 
-FHE_N_BITS = 8
-FHE_COMPILE_SAMPLES = 500
+FHE_N_BITS = 3
+FHE_COMPILE_SAMPLES = 200

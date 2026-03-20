@@ -8,7 +8,7 @@
 // Parameters are loaded from binary assets produced by emotion_ml/export_dart_assets.py:
 //   assets/fhe/vocab.json          — word → column index
 //   assets/fhe/idf_weights.bin     — float32[5000]
-//   assets/fhe/svd_components.bin  — float32[200 × 5000], row-major
+//   assets/fhe/svd_components.bin  — float32[50 × 5000], row-major
 
 import 'dart:convert';
 import 'dart:math' as math;
@@ -21,7 +21,7 @@ import 'package:flutter/services.dart';
 /// Call [load] once before using [transform].
 class Vectorizer {
   static const int _nFeatures = 5000;
-  static const int _nComponents = 200;
+  static const int _nComponents = 50;
 
   // Word → column index in TF-IDF matrix
   late Map<String, int> _vocab;
@@ -49,15 +49,15 @@ class Vectorizer {
     _loaded = true;
   }
 
-  /// Transform [text] → 200-dimensional L2-normalised LSA feature vector.
+  /// Transform [text] → 50-dimensional L2-normalised LSA feature vector.
   ///
   /// Matches the Python pipeline exactly:
   ///   1. Tokenise with \b\w{2,}\b, lowercase
   ///   2. Term frequency: tf = 1 + log(count)  (sublinear_tf=True)
   ///   3. TF-IDF: tfidf[i] = tf[i] * idf[i]
   ///   4. L2-normalise the TF-IDF vector
-  ///   5. SVD: out = tfidf_vec × components^T  → 200-dim
-  ///   6. L2-normalise the 200-dim vector
+  ///   5. SVD: out = tfidf_vec × components^T  → 50-dim
+  ///   6. L2-normalise the 50-dim vector
   Float32List transform(String text) {
     assert(_loaded, 'Call load() before transform()');
 
@@ -99,8 +99,8 @@ class Vectorizer {
     // ── Step 4: L2 normalise TF-IDF vector ───────────────────────────────────
     _l2Normalize(tfidf);
 
-    // ── Step 5: SVD — tfidf @ components^T → 200-dim ────────────────────────
-    // components shape: (200, 5000), stored row-major in _components.
+    // ── Step 5: SVD — tfidf @ components^T → 50-dim ────────────────────────
+    // components shape: (50, 5000), stored row-major in _components.
     // result[j] = dot(tfidf, components[j])
     // Optimised: only iterate non-zero indices of tfidf.
     final nonZeroIdx = counts.keys.toList();

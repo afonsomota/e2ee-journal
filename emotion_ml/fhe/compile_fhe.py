@@ -21,8 +21,8 @@ from sklearn.utils.class_weight import compute_sample_weight
 from concrete.ml.deployment import FHEModelDev
 from concrete.ml.sklearn import XGBClassifier as FHEXGBClassifier
 
-from concrete.ml.common.utils import CiphertextFormat
-_TFHE_RS_FORMAT = CiphertextFormat.TFHE_RS
+## CiphertextFormat.CONCRETE is the default — supports any n_bits (including 3).
+## flutter_concrete now supports this format natively via seeded LWE encryption.
 
 from config import (
     ARTIFACTS_DIR,
@@ -65,19 +65,13 @@ def compile_fhe():
     print("Training XGBClassifier...", flush=True)
     model.fit(X_lsa, y_train, sample_weight=sample_weights)
 
-    # Compile with TFHE-rs ciphertext format so the Dart native client
-    # (libfhe_client, using tfhe-rs) can encrypt inputs and decrypt outputs
-    # without a Python runtime on-device.
+    # Compile with default CiphertextFormat.CONCRETE.
+    # flutter_concrete now supports this format natively via seeded LWE encryption,
+    # so we no longer need TFHE_RS (which forces n_bits=8).
     rng = np.random.RandomState(42)
     idx = rng.choice(len(X_lsa), FHE_COMPILE_SAMPLES, replace=False)
-    print("Compiling FHE circuit...", flush=True)
-    compile_kwargs = {}
-    if _TFHE_RS_FORMAT is not None:
-        compile_kwargs["ciphertext_format"] = _TFHE_RS_FORMAT
-        print(f"  Using CiphertextFormat.TFHE_RS for native Dart client compatibility", flush=True)
-    else:
-        print("  WARNING: CiphertextFormat not found; compiling with default format.", flush=True)
-    model.compile(X_lsa[idx], **compile_kwargs)
+    print("Compiling FHE circuit (CiphertextFormat.CONCRETE)...", flush=True)
+    model.compile(X_lsa[idx])
 
     # Save FHE deployment artifacts
     fhe_dir = ARTIFACTS_DIR / "fhe_model"

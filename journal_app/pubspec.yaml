@@ -11,10 +11,7 @@ dependencies:
     sdk: flutter
 
   # FHE client plugin (native TFHE-rs via Cargokit)
-  flutter_concrete:
-    git:
-      url: https://github.com/afonsomota/flutter_concrete.git
-    # path: ../flutter_concrete
+  flutter_concrete: ^0.3.0
 
   # HTTP client
   dio: ^5.4.0

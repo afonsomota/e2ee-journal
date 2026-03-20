@@ -9,7 +9,7 @@ Run once after training:
 Outputs to journal_app/assets/fhe/:
     vocab.json              — word → index map (str → int)
     idf_weights.bin         — 5000 × float32, little-endian
-    svd_components.bin      — 200 × 5000 × float32, little-endian, row-major
+    svd_components.bin      — N_COMPONENTS × 5000 × float32, little-endian, row-major
     client.zip              — Concrete ML client model (parsed by flutter_concrete plugin)
 """
 
