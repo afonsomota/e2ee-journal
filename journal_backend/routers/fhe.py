@@ -16,10 +16,11 @@ import time
 from pathlib import Path
 
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from log import get_logger
+from routers.auth import current_user
 
 logger = get_logger(__name__)
 
@@ -61,12 +62,10 @@ _eval_keys: dict[str, fhe.EvaluationKeys] = {}
 
 
 class KeyUpload(BaseModel):
-    client_id: str
     evaluation_key_b64: str
 
 
 class PredictRequest(BaseModel):
-    client_id: str
     encrypted_input_b64: str
 
 
@@ -78,7 +77,7 @@ class PredictResponse(BaseModel):
 
 
 @router.post("/key")
-async def upload_evaluation_key(payload: KeyUpload):
+async def upload_evaluation_key(payload: KeyUpload, user: dict = Depends(current_user)):
     """Receive and store the client's FHE evaluation key.
 
     The Dart native client generates a Concrete-compatible Cap'n Proto
@@ -88,24 +87,26 @@ async def upload_evaluation_key(payload: KeyUpload):
     Deserialization happens once on upload so the expensive Cap'n Proto parse
     (~120 MB) does not repeat on every predict call.
     """
+    user_id = user["id"]
     raw = base64.b64decode(payload.evaluation_key_b64)
     logger.info(
-        f"Deserializing evaluation key for client {payload.client_id} "
+        f"Deserializing evaluation key for user {user_id} "
         f"({len(raw):,} bytes)..."
     )
-    _eval_keys[payload.client_id] = fhe.EvaluationKeys.deserialize(raw)
-    logger.info(f"Evaluation key stored for client {payload.client_id}")
+    _eval_keys[user_id] = fhe.EvaluationKeys.deserialize(raw)
+    logger.info(f"Evaluation key stored for user {user_id}")
     return {"status": "ok"}
 
 
 @router.post("/predict", response_model=PredictResponse)
-async def predict(payload: PredictRequest):
+async def predict(payload: PredictRequest, user: dict = Depends(current_user)):
     """Run FHE inference on an encrypted feature vector."""
-    logger.info(f"Predict request from client {payload.client_id}")
+    user_id = user["id"]
+    logger.info(f"Predict request from user {user_id}")
 
-    eval_keys = _eval_keys.get(payload.client_id)
+    eval_keys = _eval_keys.get(user_id)
     if eval_keys is None:
-        logger.error(f"Evaluation keys not found for client {payload.client_id}")
+        logger.error(f"Evaluation keys not found for user {user_id}")
         raise HTTPException(
             status_code=400,
             detail="Evaluation keys not found. Call POST /fhe/key first.",
