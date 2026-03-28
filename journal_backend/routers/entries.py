@@ -1,14 +1,14 @@
 # routers/entries.py
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Optional
 import uuid
 from datetime import datetime
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from log import get_logger
 from models.database import get_db
 from routers.auth import current_user
-from log import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -16,26 +16,29 @@ logger = get_logger(__name__)
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
+
 class CreateEntryRequest(BaseModel):
-    content: Optional[str] = None
-    encrypted_blob: Optional[str] = None
-    encrypted_content_key: Optional[str] = None
+    content: str | None = None
+    encrypted_blob: str | None = None
+    encrypted_content_key: str | None = None
 
 
 class UpdateEntryRequest(BaseModel):
-    content: Optional[str] = None
-    encrypted_blob: Optional[str] = None
+    content: str | None = None
+    encrypted_blob: str | None = None
 
 
 class ShareRequest(BaseModel):
     recipient_username: str
-    encrypted_content_key: Optional[str] = None
+    encrypted_content_key: str | None = None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _serialize_entry(row: dict, shared_with: list[str] = None,
-                     shared_eck: str = None) -> dict:
+
+def _serialize_entry(
+    row: dict, shared_with: list[str] | None = None, shared_eck: str | None = None
+) -> dict:
     return {
         "id": row["id"],
         "author_id": row["author_id"],
@@ -52,12 +55,13 @@ def _serialize_entry(row: dict, shared_with: list[str] = None,
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+
 @router.post("")
 async def create_entry(
     req: CreateEntryRequest,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict:
     if not req.content and not req.encrypted_blob:
         raise HTTPException(status_code=400, detail="Content or encrypted_blob required")
 
@@ -97,7 +101,7 @@ async def create_entry(
 
 
 @router.get("")
-async def list_entries(user=Depends(current_user), db=Depends(get_db)):
+async def list_entries(user=Depends(current_user), db=Depends(get_db)) -> list[dict]:
     """Return the current user's own entries with share lists."""
     logger.debug(f"Listing entries for user {user['username']}")
     async with db.execute(
@@ -126,7 +130,7 @@ async def list_entries(user=Depends(current_user), db=Depends(get_db)):
 
 
 @router.get("/shared-with-me")
-async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)):
+async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)) -> list[dict]:
     """
     Return entries shared with the current user.
     Returns the encrypted_content_key encrypted FOR THIS USER,
@@ -145,10 +149,7 @@ async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)):
     ) as cur:
         rows = [dict(r) for r in await cur.fetchall()]
 
-    return [
-        _serialize_entry(row, shared_eck=row["shared_eck"])
-        for row in rows
-    ]
+    return [_serialize_entry(row, shared_eck=row["shared_eck"]) for row in rows]
 
 
 @router.put("/{entry_id}")
@@ -157,11 +158,9 @@ async def update_entry(
     req: UpdateEntryRequest,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool]:
     logger.info(f"Updating entry {entry_id} for user {user['username']}")
-    async with db.execute(
-        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
-    ) as cur:
+    async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:
@@ -189,11 +188,9 @@ async def delete_entry(
     entry_id: str,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool]:
     logger.info(f"Deleting entry {entry_id} for user {user['username']}")
-    async with db.execute(
-        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
-    ) as cur:
+    async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:
@@ -215,7 +212,7 @@ async def share_entry(
     req: ShareRequest,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool | str]:
     """
     Store a copy of the content key encrypted for the recipient.
     The server just stores a mapping from (entry, recipient) to an encrypted
@@ -224,9 +221,7 @@ async def share_entry(
     """
     logger.info(f"Sharing entry {entry_id} with {req.recipient_username} (by {user['username']})")
     # Verify caller owns the entry.
-    async with db.execute(
-        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
-    ) as cur:
+    async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:
@@ -267,7 +262,7 @@ async def revoke_share(
     username: str,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool]:
     """
     Revoke access by deleting the key blob for the recipient.
     They can no longer fetch a key to decrypt the entry.
@@ -275,6 +270,20 @@ async def revoke_share(
     True revocation requires re-encryption.
     """
     logger.info(f"Revoking share of entry {entry_id} from {username} (by {user['username']})")
+
+    # Verify caller owns the entry.
+    async with db.execute(
+        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
+    ) as cur:
+        entry = await cur.fetchone()
+
+    if entry is None:
+        logger.warning(f"Revoke failed: entry {entry_id} not found")
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if entry["author_id"] != user["id"]:
+        logger.warning(f"Revoke failed: user {user['username']} does not own entry {entry_id}")
+        raise HTTPException(status_code=403, detail="Not your entry")
+
     async with db.execute(
         "SELECT id FROM users WHERE username = ?", (username,)
     ) as cur:

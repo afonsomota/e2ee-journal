@@ -5,6 +5,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
+import '../config.dart';
 import '../models/journal_entry.dart';
 import 'auth_service.dart';
 import 'crypto_service.dart';
@@ -26,7 +27,7 @@ class JournalService extends ChangeNotifier {
 
   Dio get _dio {
     final d = Dio(BaseOptions(
-      baseUrl: 'http://localhost:8000',
+      baseUrl: apiBaseUrl,
       connectTimeout: const Duration(seconds: 10),
     ));
     d.interceptors.add(InterceptorsWrapper(onRequest: (opts, handler) {
@@ -190,8 +191,7 @@ class JournalService extends ChangeNotifier {
 
       await _dio.post('/entries/$entryId/share', data: {
         'recipient_username': recipientUsername,
-        if (recipientEncryptedContentKey != null)
-          'encrypted_content_key': recipientEncryptedContentKey,
+        'encrypted_content_key': ?recipientEncryptedContentKey,
       });
 
       final idx = _entries.indexWhere((e) => e.id == entryId);

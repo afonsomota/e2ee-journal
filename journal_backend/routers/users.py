@@ -15,10 +15,11 @@
 #   • TOFU (Trust On First Use): client remembers the first key seen for a
 #     username and warns if it changes.
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
+
+from log import get_logger
 from models.database import get_db
 from routers.auth import current_user
-from log import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -29,7 +30,7 @@ async def get_public_key(
     username: str,
     user=Depends(current_user),  # must be authenticated to look up keys
     db=Depends(get_db),
-):
+) -> dict[str, str]:
     """
     Return a user's public key.
     Used by the sharing flow: Alice fetches Bob's public key before
@@ -59,7 +60,7 @@ async def get_public_key(
 
 
 @router.get("/me")
-async def get_me(user=Depends(current_user)):
+async def get_me(user=Depends(current_user)) -> dict:
     logger.debug(f"Fetching profile for user {user['username']}")
     return {
         "id": user["id"],

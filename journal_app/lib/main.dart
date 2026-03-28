@@ -29,7 +29,11 @@ class JournalApp extends StatelessWidget {
           update: (_, auth, crypto, journal) =>
               (journal ?? JournalService())..update(auth, crypto),
         ),
-        ChangeNotifierProvider(create: (_) => EmotionService()..initialize()),
+        ChangeNotifierProxyProvider<AuthService, EmotionService>(
+          create: (_) => EmotionService(),
+          update: (_, auth, emotion) =>
+              (emotion ?? EmotionService())..update(auth),
+        ),
       ],
       child: MaterialApp(
         title: 'InnerApple',

@@ -21,8 +21,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_concrete/flutter_concrete.dart';
 
+import '../config.dart';
 import '../fhe/vectorizer.dart';
 import '../models/emotion_result.dart';
+import 'auth_service.dart';
 import 'secure_key_storage.dart';
 
 /// Emotion label order — must match training config LABELS list.
@@ -32,14 +34,40 @@ class EmotionService extends ChangeNotifier {
   final ConcreteClient _concrete = ConcreteClient();
   final Vectorizer _vectorizer = Vectorizer();
 
-  final Dio _backend = Dio(BaseOptions(
-    baseUrl: 'http://localhost:8000',
-    connectTimeout: const Duration(seconds: 60),
-    receiveTimeout: const Duration(minutes: 10),
-  ));
+  late final Dio _backend;
+  AuthService? _auth;
 
-  String? _clientId;
+  EmotionService() {
+    _backend = Dio(BaseOptions(
+      baseUrl: apiBaseUrl,
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(minutes: 10),
+    ));
+    _backend.interceptors.add(InterceptorsWrapper(onRequest: (opts, handler) {
+      if (_auth?.token != null) {
+        opts.headers['Authorization'] = 'Bearer ${_auth!.token}';
+      }
+      handler.next(opts);
+    }));
+  }
+
+  void update(AuthService auth) {
+    final previousToken = _auth?.token;
+    _auth = auth;
+    if (!auth.isLoggedIn) {
+      _initialized = false;
+      _initializing = false;
+      _available = false;
+      return;
+    }
+    if (!_initialized || auth.token != previousToken) {
+      _initialized = false;
+      unawaited(initialize());
+    }
+  }
+
   bool _initialized = false;
+  bool _initializing = false;
   bool _available = false;
 
   final Map<String, EmotionResult> _cache = {};
@@ -55,10 +83,11 @@ class EmotionService extends ChangeNotifier {
 
   /// Initialize FHE keys and upload eval key to backend.
   Future<void> initialize() async {
-    if (_initialized) {
-      dev.log('[EmotionService] already initialized, skipping');
+    if (_initialized || _initializing) {
+      dev.log('[EmotionService] already initialized/initializing, skipping');
       return;
     }
+    _initializing = true;
     try {
       dev.log('[EmotionService] starting FHE setup...');
 
@@ -72,12 +101,10 @@ class EmotionService extends ChangeNotifier {
         ),
       ]);
 
-      _clientId = 'dart-fhe-client';
       dev.log('[EmotionService] FHE setup complete, uploading eval key...');
 
-      // 2. Upload evaluation key to backend
+      // 2. Upload evaluation key to backend (scoped by authenticated user ID)
       await _backend.post('/fhe/key', data: {
-        'client_id': _clientId,
         'evaluation_key_b64': _concrete.serverKeyBase64,
       });
 
@@ -98,6 +125,8 @@ class EmotionService extends ChangeNotifier {
     } catch (e) {
       dev.log('[EmotionService] initialize failed: $e');
       _available = false;
+    } finally {
+      _initializing = false;
     }
   }
 
@@ -130,7 +159,6 @@ class EmotionService extends ChangeNotifier {
       // 3. Send to server
       dev.log('[EmotionService] classifyEntry($entryId): posting to /fhe/predict...');
       final predResp = await _backend.post('/fhe/predict', data: {
-        'client_id': _clientId,
         'encrypted_input_b64': base64Encode(ciphertext),
       });
       final encryptedResultB64 =
@@ -143,9 +171,11 @@ class EmotionService extends ChangeNotifier {
       );
 
       // 5. Interpret (app-specific: argmax + softmax confidence)
-      dev.log('[EmotionService] classifyEntry($entryId): raw scores=$scores');
-      dev.log('[EmotionService] classifyEntry($entryId): '
-          'features[0..9]=${features.sublist(0, math.min(10, features.length))}');
+      if (kDebugMode) {
+        dev.log('[EmotionService] classifyEntry($entryId): raw scores=$scores');
+        dev.log('[EmotionService] classifyEntry($entryId): '
+            'features[0..9]=${features.sublist(0, math.min(10, features.length))}');
+      }
 
       int maxIdx = 0;
       for (int i = 1; i < scores.length; i++) {

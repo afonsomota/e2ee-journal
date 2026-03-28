@@ -106,7 +106,8 @@ void main() {
 
   setUpAll(() {
     final zipBytes = File('../journal_app/assets/fhe/client.zip').readAsBytesSync();
-    final qp = ClientZipParser.parse(zipBytes);
+    final parseResult = ClientZipParser.parse(zipBytes);
+    final qp = parseResult.quantParams;
     inputQuantizers = qp.input.map((p) => {
       'scale': p.scale,
       'zero_point': p.zeroPoint,

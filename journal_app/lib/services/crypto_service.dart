@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // THE CRYPTOGRAPHIC CORE
 //
-// Primitives used (all via sodium_libs / libsodium):
+// Primitives used (all via sodium / libsodium):
 //
 //   KDF       Argon2id          — password → 32-byte symmetric key
 //   SecretBox XSalsa20-Poly1305 — symmetric authenticated encryption
@@ -19,7 +19,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:sodium_libs/sodium_libs_sumo.dart';
+import 'package:sodium/sodium_sumo.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // Storage keys

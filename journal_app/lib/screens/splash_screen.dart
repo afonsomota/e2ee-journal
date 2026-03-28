@@ -120,7 +120,7 @@ class _SplashScreenState extends State<SplashScreen>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _fadeOut,
-      builder: (_, __) => Opacity(
+      builder: (_, _) => Opacity(
         opacity: _fadeOut.value,
         child: Scaffold(
           backgroundColor: AppColors.background,
@@ -131,7 +131,7 @@ class _SplashScreenState extends State<SplashScreen>
                 // Logo
                 AnimatedBuilder(
                   animation: _logoController,
-                  builder: (_, __) => Opacity(
+                  builder: (_, _) => Opacity(
                     opacity: _logoOpacity.value,
                     child: Transform.scale(
                       scale: _logoScale.value,
@@ -149,7 +149,7 @@ class _SplashScreenState extends State<SplashScreen>
                 // App title — serif
                 AnimatedBuilder(
                   animation: _textController,
-                  builder: (_, __) => SlideTransition(
+                  builder: (_, _) => SlideTransition(
                     position: _titleSlide,
                     child: Opacity(
                       opacity: _titleOpacity.value,
@@ -171,7 +171,7 @@ class _SplashScreenState extends State<SplashScreen>
                 // Tagline
                 AnimatedBuilder(
                   animation: _textController,
-                  builder: (_, __) => SlideTransition(
+                  builder: (_, _) => SlideTransition(
                     position: _taglineSlide,
                     child: Opacity(
                       opacity: _taglineOpacity.value,
