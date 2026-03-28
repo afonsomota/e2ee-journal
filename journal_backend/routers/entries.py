@@ -270,7 +270,23 @@ async def revoke_share(
     True revocation requires re-encryption.
     """
     logger.info(f"Revoking share of entry {entry_id} from {username} (by {user['username']})")
-    async with db.execute("SELECT id FROM users WHERE username = ?", (username,)) as cur:
+
+    # Verify caller owns the entry.
+    async with db.execute(
+        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
+    ) as cur:
+        entry = await cur.fetchone()
+
+    if entry is None:
+        logger.warning(f"Revoke failed: entry {entry_id} not found")
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if entry["author_id"] != user["id"]:
+        logger.warning(f"Revoke failed: user {user['username']} does not own entry {entry_id}")
+        raise HTTPException(status_code=403, detail="Not your entry")
+
+    async with db.execute(
+        "SELECT id FROM users WHERE username = ?", (username,)
+    ) as cur:
         recipient = await cur.fetchone()
 
     if recipient:

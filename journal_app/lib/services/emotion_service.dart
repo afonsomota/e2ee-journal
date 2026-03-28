@@ -144,9 +144,11 @@ class EmotionService extends ChangeNotifier {
       );
 
       // 5. Interpret (app-specific: argmax + softmax confidence)
-      dev.log('[EmotionService] classifyEntry($entryId): raw scores=$scores');
-      dev.log('[EmotionService] classifyEntry($entryId): '
-          'features[0..9]=${features.sublist(0, math.min(10, features.length))}');
+      if (kDebugMode) {
+        dev.log('[EmotionService] classifyEntry($entryId): raw scores=$scores');
+        dev.log('[EmotionService] classifyEntry($entryId): '
+            'features[0..9]=${features.sublist(0, math.min(10, features.length))}');
+      }
 
       int maxIdx = 0;
       for (int i = 1; i < scores.length; i++) {

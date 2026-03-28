@@ -8,5 +8,5 @@ alembic==1.13.1           # latest 1.14.x available
 bcrypt==4.1.2             # latest 4.2.x available
 PyJWT==2.8.0              # latest 2.10.x available
 pydantic==2.5.3           # latest 2.10.x available; must stay compatible with fastapi pin
-python-multipart==0.0.7   # latest 0.0.20 available
+python-multipart>=0.0.14  # CVE-2024-47874 fixed in 0.0.14
 concrete-ml>=1.9.0        # DO NOT upgrade without testing full FHE pipeline end-to-end

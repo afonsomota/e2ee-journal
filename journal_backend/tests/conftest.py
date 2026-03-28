@@ -14,6 +14,7 @@ import pytest
 _tmp_fd, _tmp_path = tempfile.mkstemp(suffix=".db")
 os.close(_tmp_fd)
 os.environ["DB_PATH"] = _tmp_path
+os.environ.setdefault("ENVIRONMENT", "development")
 
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

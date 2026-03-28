@@ -16,7 +16,19 @@ from models.database import get_db
 router = APIRouter()
 logger = get_logger(__name__)
 
-JWT_SECRET = os.getenv("JWT_SECRET", "default-dev-secret-key-32-bytes!!!")
+_ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+
+_jwt_secret_env = os.getenv("JWT_SECRET")
+if _jwt_secret_env:
+    JWT_SECRET = _jwt_secret_env
+elif _ENVIRONMENT == "development":
+    JWT_SECRET = "default-dev-secret-key-32-bytes!!!"
+else:
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required in production. "
+        "Set ENVIRONMENT=development to use a dev-only default."
+    )
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24 * 7  # 1 week
 
@@ -43,6 +55,10 @@ class AuthResponse(BaseModel):
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+# Pre-computed dummy hash for constant-time login rejection when user not found.
+_DUMMY_HASH = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=12)).decode()
+
 
 
 def _create_token(user_id: str, username: str) -> str:
@@ -131,7 +147,11 @@ async def login(req: LoginRequest, db=Depends(get_db)) -> dict:
     async with db.execute("SELECT * FROM users WHERE username = ?", (req.username,)) as cur:
         row = await cur.fetchone()
 
-    if row is None or not bcrypt.checkpw(req.password.encode(), row["password_hash"].encode()):
+    # Always run bcrypt to prevent timing-based user enumeration.
+    stored_hash = row["password_hash"] if row is not None else _DUMMY_HASH
+    password_ok = bcrypt.checkpw(req.password.encode(), stored_hash.encode())
+
+    if row is None or not password_ok:
         logger.warning(f"Login failed for username: {req.username}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

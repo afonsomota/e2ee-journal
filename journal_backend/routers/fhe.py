@@ -10,17 +10,23 @@
 #   • Decrypted predictions.
 # This matches the existing E2EE trust model.
 
+from __future__ import annotations
+
 import base64
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING
 
 import concrete.fhe as fhe
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+if TYPE_CHECKING:
+    from concrete.ml.deployment import FHEModelServer
+
 from log import get_logger
+from routers.auth import current_user
 
 logger = get_logger(__name__)
 
@@ -33,10 +39,10 @@ FHE_MODEL_DIR = os.environ.get(
     str(Path(__file__).parent.parent / "fhe_model"),
 )
 
-_server = None
+_server: FHEModelServer | None = None
 
 
-def _get_server() -> Any:
+def _get_server() -> FHEModelServer:
     """Lazy-load the FHE server to avoid import cost at startup."""
     global _server
     if _server is None:
@@ -60,12 +66,10 @@ _eval_keys: dict[str, fhe.EvaluationKeys] = {}
 
 
 class KeyUpload(BaseModel):
-    client_id: str
     evaluation_key_b64: str
 
 
 class PredictRequest(BaseModel):
-    client_id: str
     encrypted_input_b64: str
 
 
@@ -77,7 +81,7 @@ class PredictResponse(BaseModel):
 
 
 @router.post("/key")
-async def upload_evaluation_key(payload: KeyUpload) -> dict[str, str]:
+async def upload_evaluation_key(payload: KeyUpload, user: dict = Depends(current_user)) -> dict[str, str]:
     """Receive and store the client's FHE evaluation key.
 
     The Dart native client generates a Concrete-compatible Cap'n Proto
@@ -87,23 +91,29 @@ async def upload_evaluation_key(payload: KeyUpload) -> dict[str, str]:
     Deserialization happens once on upload so the expensive Cap'n Proto parse
     (~120 MB) does not repeat on every predict call.
     """
-    raw = base64.b64decode(payload.evaluation_key_b64)
+    user_id = user["id"]
+    try:
+        raw = base64.b64decode(payload.evaluation_key_b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 encoding") from None
     logger.info(
-        f"Deserializing evaluation key for client {payload.client_id} ({len(raw):,} bytes)..."
+        f"Deserializing evaluation key for user {user_id} "
+        f"({len(raw):,} bytes)..."
     )
-    _eval_keys[payload.client_id] = fhe.EvaluationKeys.deserialize(raw)
-    logger.info(f"Evaluation key stored for client {payload.client_id}")
+    _eval_keys[user_id] = fhe.EvaluationKeys.deserialize(raw)
+    logger.info(f"Evaluation key stored for user {user_id}")
     return {"status": "ok"}
 
 
 @router.post("/predict", response_model=PredictResponse)
-async def predict(payload: PredictRequest) -> PredictResponse:
+async def predict(payload: PredictRequest, user: dict = Depends(current_user)) -> PredictResponse:
     """Run FHE inference on an encrypted feature vector."""
-    logger.info(f"Predict request from client {payload.client_id}")
+    user_id = user["id"]
+    logger.info(f"Predict request from user {user_id}")
 
-    eval_keys = _eval_keys.get(payload.client_id)
+    eval_keys = _eval_keys.get(user_id)
     if eval_keys is None:
-        logger.error(f"Evaluation keys not found for client {payload.client_id}")
+        logger.error(f"Evaluation keys not found for user {user_id}")
         raise HTTPException(
             status_code=400,
             detail="Evaluation keys not found. Call POST /fhe/key first.",
