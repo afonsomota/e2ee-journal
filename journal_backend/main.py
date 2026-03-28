@@ -16,14 +16,13 @@
 #   • The encryption key derived from the user's password.
 #   • Any private key (it stores encryptedPrivateKey but cannot decrypt it).
 
-import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from log import configure_root, get_logger
-from routers import auth, entries, fhe, users
 from models.database import init_db
+from routers import auth, entries, fhe, users
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 # configure_root() lowers the level on the root logger AND any handlers that

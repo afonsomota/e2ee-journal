@@ -19,8 +19,9 @@
 import os
 
 import aiosqlite
-from alembic import command
 from alembic.config import Config
+
+from alembic import command
 
 DB_PATH = os.getenv("DB_PATH", "journal.db")
 

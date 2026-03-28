@@ -4,20 +4,21 @@ Uses a temporary SQLite database that is created fresh for each test session.
 Alembic migrations run against the temp DB so the schema matches production.
 """
 
+import contextlib
 import os
 import tempfile
 
 import pytest
 
 # Point the database at a temp file BEFORE importing app modules.
-_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
-_tmp.close()
-os.environ["DB_PATH"] = _tmp.name
+_tmp_fd, _tmp_path = tempfile.mkstemp(suffix=".db")
+os.close(_tmp_fd)
+os.environ["DB_PATH"] = _tmp_path
 
-from alembic import command  # noqa: E402
 from alembic.config import Config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+from alembic import command  # noqa: E402
 from main import app  # noqa: E402
 
 
@@ -25,14 +26,12 @@ from main import app  # noqa: E402
 def _run_migrations():
     """Run Alembic migrations once per test session."""
     cfg = Config("alembic.ini")
-    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{_tmp.name}")
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{_tmp_path}")
     command.upgrade(cfg, "head")
     yield
     # Cleanup temp DB after the entire session.
-    try:
-        os.unlink(_tmp.name)
-    except OSError:
-        pass
+    with contextlib.suppress(OSError):
+        os.unlink(_tmp_path)
 
 
 @pytest.fixture()

@@ -3,7 +3,7 @@
 
 class TestRegister:
     def test_register_success(self, client, register_user):
-        header, user = register_user(username="reg_ok")
+        _header, user = register_user(username="reg_ok")
         assert user["username"] == "reg_ok"
         assert user["public_key"] == "pk_test"
         assert "id" in user

@@ -64,9 +64,7 @@ class TestListEntries:
 class TestUpdateEntry:
     def test_update_own_entry(self, client, register_user):
         header, _ = register_user()
-        create_resp = client.post(
-            "/entries", json={"content": "original"}, headers=header
-        )
+        create_resp = client.post("/entries", json={"content": "original"}, headers=header)
         entry_id = create_resp.json()["id"]
         resp = client.put(
             f"/entries/{entry_id}",
@@ -79,9 +77,7 @@ class TestUpdateEntry:
     def test_update_other_users_entry(self, client, register_user):
         h1, _ = register_user()
         h2, _ = register_user()
-        create_resp = client.post(
-            "/entries", json={"content": "mine"}, headers=h1
-        )
+        create_resp = client.post("/entries", json={"content": "mine"}, headers=h1)
         entry_id = create_resp.json()["id"]
         resp = client.put(
             f"/entries/{entry_id}",
@@ -103,9 +99,7 @@ class TestUpdateEntry:
 class TestDeleteEntry:
     def test_delete_own_entry(self, client, register_user):
         header, _ = register_user()
-        create_resp = client.post(
-            "/entries", json={"content": "to delete"}, headers=header
-        )
+        create_resp = client.post("/entries", json={"content": "to delete"}, headers=header)
         entry_id = create_resp.json()["id"]
         resp = client.delete(f"/entries/{entry_id}", headers=header)
         assert resp.status_code == 200
@@ -114,9 +108,7 @@ class TestDeleteEntry:
     def test_delete_other_users_entry(self, client, register_user):
         h1, _ = register_user()
         h2, _ = register_user()
-        create_resp = client.post(
-            "/entries", json={"content": "mine"}, headers=h1
-        )
+        create_resp = client.post("/entries", json={"content": "mine"}, headers=h1)
         entry_id = create_resp.json()["id"]
         resp = client.delete(f"/entries/{entry_id}", headers=h2)
         assert resp.status_code == 403
@@ -130,10 +122,8 @@ class TestDeleteEntry:
 class TestSharing:
     def test_share_entry(self, client, register_user):
         h_owner, _ = register_user()
-        _, recipient = register_user(username="share_recipient_1")
-        create_resp = client.post(
-            "/entries", json={"content": "shared"}, headers=h_owner
-        )
+        _, _recipient = register_user(username="share_recipient_1")
+        create_resp = client.post("/entries", json={"content": "shared"}, headers=h_owner)
         entry_id = create_resp.json()["id"]
         resp = client.post(
             f"/entries/{entry_id}/share",
@@ -148,7 +138,7 @@ class TestSharing:
 
     def test_shared_with_me(self, client, register_user):
         h_owner, _ = register_user()
-        h_recipient, r_user = register_user(username="share_reader_1")
+        h_recipient, _r_user = register_user(username="share_reader_1")
         create_resp = client.post(
             "/entries",
             json={"content": "secret", "encrypted_blob": "blob1"},
@@ -183,9 +173,7 @@ class TestSharing:
         h_owner, _ = register_user()
         h_other, _ = register_user()
         register_user(username="share_target_1")
-        create_resp = client.post(
-            "/entries", json={"content": "mine"}, headers=h_owner
-        )
+        create_resp = client.post("/entries", json={"content": "mine"}, headers=h_owner)
         entry_id = create_resp.json()["id"]
         resp = client.post(
             f"/entries/{entry_id}/share",
@@ -196,9 +184,7 @@ class TestSharing:
 
     def test_share_nonexistent_recipient(self, client, register_user):
         h_owner, _ = register_user()
-        create_resp = client.post(
-            "/entries", json={"content": "x"}, headers=h_owner
-        )
+        create_resp = client.post("/entries", json={"content": "x"}, headers=h_owner)
         entry_id = create_resp.json()["id"]
         resp = client.post(
             f"/entries/{entry_id}/share",
@@ -210,9 +196,7 @@ class TestSharing:
     def test_revoke_share(self, client, register_user):
         h_owner, _ = register_user()
         h_recipient, _ = register_user(username="revoke_target_1")
-        create_resp = client.post(
-            "/entries", json={"content": "revokable"}, headers=h_owner
-        )
+        create_resp = client.post("/entries", json={"content": "revokable"}, headers=h_owner)
         entry_id = create_resp.json()["id"]
         client.post(
             f"/entries/{entry_id}/share",

@@ -1,14 +1,14 @@
 # routers/entries.py
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from typing import Optional
 import uuid
 from datetime import datetime
 
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+
+from log import get_logger
 from models.database import get_db
 from routers.auth import current_user
-from log import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -16,26 +16,29 @@ logger = get_logger(__name__)
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
+
 class CreateEntryRequest(BaseModel):
-    content: Optional[str] = None
-    encrypted_blob: Optional[str] = None
-    encrypted_content_key: Optional[str] = None
+    content: str | None = None
+    encrypted_blob: str | None = None
+    encrypted_content_key: str | None = None
 
 
 class UpdateEntryRequest(BaseModel):
-    content: Optional[str] = None
-    encrypted_blob: Optional[str] = None
+    content: str | None = None
+    encrypted_blob: str | None = None
 
 
 class ShareRequest(BaseModel):
     recipient_username: str
-    encrypted_content_key: Optional[str] = None
+    encrypted_content_key: str | None = None
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-def _serialize_entry(row: dict, shared_with: list[str] = None,
-                     shared_eck: str = None) -> dict:
+
+def _serialize_entry(
+    row: dict, shared_with: list[str] | None = None, shared_eck: str | None = None
+) -> dict:
     return {
         "id": row["id"],
         "author_id": row["author_id"],
@@ -51,6 +54,7 @@ def _serialize_entry(row: dict, shared_with: list[str] = None,
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
+
 
 @router.post("")
 async def create_entry(
@@ -145,10 +149,7 @@ async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)):
     ) as cur:
         rows = [dict(r) for r in await cur.fetchall()]
 
-    return [
-        _serialize_entry(row, shared_eck=row["shared_eck"])
-        for row in rows
-    ]
+    return [_serialize_entry(row, shared_eck=row["shared_eck"]) for row in rows]
 
 
 @router.put("/{entry_id}")
@@ -159,9 +160,7 @@ async def update_entry(
     db=Depends(get_db),
 ):
     logger.info(f"Updating entry {entry_id} for user {user['username']}")
-    async with db.execute(
-        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
-    ) as cur:
+    async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:
@@ -191,9 +190,7 @@ async def delete_entry(
     db=Depends(get_db),
 ):
     logger.info(f"Deleting entry {entry_id} for user {user['username']}")
-    async with db.execute(
-        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
-    ) as cur:
+    async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:
@@ -224,9 +221,7 @@ async def share_entry(
     """
     logger.info(f"Sharing entry {entry_id} with {req.recipient_username} (by {user['username']})")
     # Verify caller owns the entry.
-    async with db.execute(
-        "SELECT author_id FROM entries WHERE id = ?", (entry_id,)
-    ) as cur:
+    async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
 
     if row is None:
@@ -275,9 +270,7 @@ async def revoke_share(
     True revocation requires re-encryption.
     """
     logger.info(f"Revoking share of entry {entry_id} from {username} (by {user['username']})")
-    async with db.execute(
-        "SELECT id FROM users WHERE username = ?", (username,)
-    ) as cur:
+    async with db.execute("SELECT id FROM users WHERE username = ?", (username,)) as cur:
         recipient = await cur.fetchone()
 
     if recipient:

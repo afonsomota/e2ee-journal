@@ -15,7 +15,7 @@ import os
 import time
 from pathlib import Path
 
-
+import concrete.fhe as fhe
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -51,8 +51,6 @@ def _get_server():
 # ── In-memory evaluation key store ───────────────────────────────────────────
 # Keys are deserialized on upload and stored as EvaluationKeys objects so that
 # the expensive Cap'n Proto parse (~120 MB) happens once, not on every predict.
-
-import concrete.fhe as fhe
 
 _eval_keys: dict[str, fhe.EvaluationKeys] = {}
 
@@ -90,8 +88,7 @@ async def upload_evaluation_key(payload: KeyUpload):
     """
     raw = base64.b64decode(payload.evaluation_key_b64)
     logger.info(
-        f"Deserializing evaluation key for client {payload.client_id} "
-        f"({len(raw):,} bytes)..."
+        f"Deserializing evaluation key for client {payload.client_id} ({len(raw):,} bytes)..."
     )
     _eval_keys[payload.client_id] = fhe.EvaluationKeys.deserialize(raw)
     logger.info(f"Evaluation key stored for client {payload.client_id}")
@@ -126,8 +123,8 @@ async def predict(payload: PredictRequest):
         logger.debug(f"server.run() returned {len(encrypted_result)}-element tuple; unwrapping")
         encrypted_result = encrypted_result[0]
 
-    logger.info(f"FHE inference complete in {elapsed:.2f}s. Result size: {len(encrypted_result)} bytes")
-
-    return PredictResponse(
-        encrypted_result_b64=base64.b64encode(encrypted_result).decode()
+    logger.info(
+        f"FHE inference complete in {elapsed:.2f}s. Result size: {len(encrypted_result)} bytes"
     )
+
+    return PredictResponse(encrypted_result_b64=base64.b64encode(encrypted_result).decode())

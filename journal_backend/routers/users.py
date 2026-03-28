@@ -15,10 +15,11 @@
 #   • TOFU (Trust On First Use): client remembers the first key seen for a
 #     username and warns if it changes.
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException
+
+from log import get_logger
 from models.database import get_db
 from routers.auth import current_user
-from log import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)

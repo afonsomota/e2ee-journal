@@ -1,16 +1,17 @@
 # routers/auth.py
 
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, Field
-from typing import Optional
-import uuid
-import bcrypt
-import jwt
 import os
+import uuid
 from datetime import datetime, timedelta
 
-from models.database import get_db
+import bcrypt
+import jwt
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel, Field
+
 from log import get_logger
+from models.database import get_db
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -22,11 +23,12 @@ JWT_EXPIRY_HOURS = 24 * 7  # 1 week
 
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
+
 class RegisterRequest(BaseModel):
     username: str = Field(..., min_length=3, max_length=32)
     password: str = Field(..., min_length=8)
-    public_key: Optional[str] = None
-    encrypted_private_key: Optional[str] = None
+    public_key: str | None = None
+    encrypted_private_key: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -42,6 +44,7 @@ class AuthResponse(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+
 def _create_token(user_id: str, username: str) -> str:
     payload = {
         "sub": user_id,
@@ -55,14 +58,12 @@ def _verify_token(token: str) -> dict:
     try:
         return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
+        raise HTTPException(status_code=401, detail="Token expired") from None
     except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail="Invalid token") from None
 
 
 # ── Auth dependency ────────────────────────────────────────────────────────────
-
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 _bearer = HTTPBearer()
 
@@ -72,9 +73,7 @@ async def current_user(
     db=Depends(get_db),
 ):
     payload = _verify_token(credentials.credentials)
-    async with db.execute(
-        "SELECT * FROM users WHERE id = ?", (payload["sub"],)
-    ) as cur:
+    async with db.execute("SELECT * FROM users WHERE id = ?", (payload["sub"],)) as cur:
         row = await cur.fetchone()
     if row is None:
         raise HTTPException(status_code=401, detail="User not found")
@@ -83,13 +82,12 @@ async def current_user(
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
+
 @router.post("/register", response_model=AuthResponse)
 async def register(req: RegisterRequest, db=Depends(get_db)):
     logger.info(f"Register request for username: {req.username}")
     # Check username uniqueness.
-    async with db.execute(
-        "SELECT id FROM users WHERE username = ?", (req.username,)
-    ) as cur:
+    async with db.execute("SELECT id FROM users WHERE username = ?", (req.username,)) as cur:
         if await cur.fetchone():
             logger.warning(f"Register failed: username '{req.username}' already taken")
             raise HTTPException(status_code=409, detail="Username already taken")
@@ -98,9 +96,7 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
     # bcrypt the password for server-side authentication.
     # This is completely separate from the client-side Argon2 derivation.
     # The server bcrypts for auth; the client Argon2s for crypto.
-    password_hash = bcrypt.hashpw(
-        req.password.encode(), bcrypt.gensalt(rounds=12)
-    ).decode()
+    password_hash = bcrypt.hashpw(req.password.encode(), bcrypt.gensalt(rounds=12)).decode()
 
     await db.execute(
         """INSERT INTO users
@@ -132,14 +128,10 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
 @router.post("/login", response_model=AuthResponse)
 async def login(req: LoginRequest, db=Depends(get_db)):
     logger.info(f"Login request for username: {req.username}")
-    async with db.execute(
-        "SELECT * FROM users WHERE username = ?", (req.username,)
-    ) as cur:
+    async with db.execute("SELECT * FROM users WHERE username = ?", (req.username,)) as cur:
         row = await cur.fetchone()
 
-    if row is None or not bcrypt.checkpw(
-        req.password.encode(), row["password_hash"].encode()
-    ):
+    if row is None or not bcrypt.checkpw(req.password.encode(), row["password_hash"].encode()):
         logger.warning(f"Login failed for username: {req.username}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

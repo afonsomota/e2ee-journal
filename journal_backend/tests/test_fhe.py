@@ -52,7 +52,6 @@ class TestPredict:
         assert "Evaluation keys not found" in resp.json()["detail"]
 
     def test_predict_success(self, client):
-        fake_key = base64.b64encode(b"fake-eval-key").decode()
         fake_input = base64.b64encode(b"encrypted-input").decode()
         fake_result = b"encrypted-result"
 
