@@ -71,7 +71,7 @@ _bearer = HTTPBearer()
 async def current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     db=Depends(get_db),
-):
+) -> dict:
     payload = _verify_token(credentials.credentials)
     async with db.execute("SELECT * FROM users WHERE id = ?", (payload["sub"],)) as cur:
         row = await cur.fetchone()
@@ -84,7 +84,7 @@ async def current_user(
 
 
 @router.post("/register", response_model=AuthResponse)
-async def register(req: RegisterRequest, db=Depends(get_db)):
+async def register(req: RegisterRequest, db=Depends(get_db)) -> dict:
     logger.info(f"Register request for username: {req.username}")
     # Check username uniqueness.
     async with db.execute("SELECT id FROM users WHERE username = ?", (req.username,)) as cur:
@@ -126,7 +126,7 @@ async def register(req: RegisterRequest, db=Depends(get_db)):
 
 
 @router.post("/login", response_model=AuthResponse)
-async def login(req: LoginRequest, db=Depends(get_db)):
+async def login(req: LoginRequest, db=Depends(get_db)) -> dict:
     logger.info(f"Login request for username: {req.username}")
     async with db.execute("SELECT * FROM users WHERE username = ?", (req.username,)) as cur:
         row = await cur.fetchone()

@@ -17,6 +17,7 @@
 #  shares.encrypted_content_key — content key encrypted for the recipient.
 
 import os
+from collections.abc import AsyncIterator
 
 import aiosqlite
 from alembic.config import Config
@@ -26,18 +27,18 @@ from alembic import command
 DB_PATH = os.getenv("DB_PATH", "journal.db")
 
 
-async def get_db():
+async def get_db() -> AsyncIterator[aiosqlite.Connection]:
     """Dependency: yields a database connection per request."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
         yield db
 
 
-def run_migrations():
+def run_migrations() -> None:
     """Run Alembic migrations to bring the database up to date."""
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
 
 
-async def init_db():
+async def init_db() -> None:
     run_migrations()

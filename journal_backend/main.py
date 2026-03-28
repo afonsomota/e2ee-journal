@@ -53,12 +53,12 @@ app.include_router(fhe.router, prefix="/fhe", tags=["fhe"])
 
 
 @app.on_event("startup")
-async def startup():
+async def startup() -> None:
     logger.info("Backend starting up...")
     await init_db()
     logger.info("Database initialized. Backend ready.")
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok"}

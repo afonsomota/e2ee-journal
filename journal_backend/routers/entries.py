@@ -61,7 +61,7 @@ async def create_entry(
     req: CreateEntryRequest,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict:
     if not req.content and not req.encrypted_blob:
         raise HTTPException(status_code=400, detail="Content or encrypted_blob required")
 
@@ -101,7 +101,7 @@ async def create_entry(
 
 
 @router.get("")
-async def list_entries(user=Depends(current_user), db=Depends(get_db)):
+async def list_entries(user=Depends(current_user), db=Depends(get_db)) -> list[dict]:
     """Return the current user's own entries with share lists."""
     logger.debug(f"Listing entries for user {user['username']}")
     async with db.execute(
@@ -130,7 +130,7 @@ async def list_entries(user=Depends(current_user), db=Depends(get_db)):
 
 
 @router.get("/shared-with-me")
-async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)):
+async def list_shared_with_me(user=Depends(current_user), db=Depends(get_db)) -> list[dict]:
     """
     Return entries shared with the current user.
     Returns the encrypted_content_key encrypted FOR THIS USER,
@@ -158,7 +158,7 @@ async def update_entry(
     req: UpdateEntryRequest,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool]:
     logger.info(f"Updating entry {entry_id} for user {user['username']}")
     async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
@@ -188,7 +188,7 @@ async def delete_entry(
     entry_id: str,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool]:
     logger.info(f"Deleting entry {entry_id} for user {user['username']}")
     async with db.execute("SELECT author_id FROM entries WHERE id = ?", (entry_id,)) as cur:
         row = await cur.fetchone()
@@ -212,7 +212,7 @@ async def share_entry(
     req: ShareRequest,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool | str]:
     """
     Store a copy of the content key encrypted for the recipient.
     The server just stores a mapping from (entry, recipient) to an encrypted
@@ -262,7 +262,7 @@ async def revoke_share(
     username: str,
     user=Depends(current_user),
     db=Depends(get_db),
-):
+) -> dict[str, bool]:
     """
     Revoke access by deleting the key blob for the recipient.
     They can no longer fetch a key to decrypt the entry.

@@ -14,6 +14,7 @@ import base64
 import os
 import time
 from pathlib import Path
+from typing import Any
 
 import concrete.fhe as fhe
 from fastapi import APIRouter, HTTPException
@@ -35,7 +36,7 @@ FHE_MODEL_DIR = os.environ.get(
 _server = None
 
 
-def _get_server():
+def _get_server() -> Any:
     """Lazy-load the FHE server to avoid import cost at startup."""
     global _server
     if _server is None:
@@ -76,7 +77,7 @@ class PredictResponse(BaseModel):
 
 
 @router.post("/key")
-async def upload_evaluation_key(payload: KeyUpload):
+async def upload_evaluation_key(payload: KeyUpload) -> dict[str, str]:
     """Receive and store the client's FHE evaluation key.
 
     The Dart native client generates a Concrete-compatible Cap'n Proto
@@ -96,7 +97,7 @@ async def upload_evaluation_key(payload: KeyUpload):
 
 
 @router.post("/predict", response_model=PredictResponse)
-async def predict(payload: PredictRequest):
+async def predict(payload: PredictRequest) -> PredictResponse:
     """Run FHE inference on an encrypted feature vector."""
     logger.info(f"Predict request from client {payload.client_id}")
 
