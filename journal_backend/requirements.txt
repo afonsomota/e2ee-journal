@@ -6,5 +6,5 @@ alembic==1.13.1
 bcrypt==4.1.2
 PyJWT==2.8.0
 pydantic==2.5.3
-python-multipart==0.0.7
+python-multipart>=0.0.14
 concrete-ml>=1.9.0
