@@ -3,7 +3,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // THE CRYPTOGRAPHIC CORE
 //
-// Primitives used (all via sodium_libs / libsodium):
+// Primitives used (all via sodium / libsodium):
 //
 //   KDF       Argon2id          — password → 32-byte symmetric key
 //   SecretBox XSalsa20-Poly1305 — symmetric authenticated encryption
