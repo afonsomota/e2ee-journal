@@ -16,7 +16,7 @@ dependencies:
     path: ../flutter_concrete
 
   # HTTP client
-  dio: ^5.4.0
+  dio: ^5.9.2
 
   # Secure local storage (for private key)
   flutter_secure_storage: ^9.0.0
@@ -36,9 +36,9 @@ dependencies:
   json_annotation: ^4.8.1
 
   # Shared preferences (non-sensitive local state)
-  shared_preferences: ^2.2.2
+  shared_preferences: ^2.5.5
 
-  cupertino_icons: ^1.0.2
+  cupertino_icons: ^1.0.9
   google_fonts: ^8.0.2
 
 dev_dependencies:
