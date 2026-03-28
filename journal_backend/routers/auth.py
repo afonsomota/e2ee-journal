@@ -15,7 +15,19 @@ from log import get_logger
 router = APIRouter()
 logger = get_logger(__name__)
 
-JWT_SECRET = os.getenv("JWT_SECRET", "default-dev-secret-key-32-bytes!!!")
+_ENVIRONMENT = os.getenv("ENVIRONMENT", "production").lower()
+
+_jwt_secret_env = os.getenv("JWT_SECRET")
+if _jwt_secret_env:
+    JWT_SECRET = _jwt_secret_env
+elif _ENVIRONMENT == "development":
+    JWT_SECRET = "default-dev-secret-key-32-bytes!!!"
+else:
+    raise RuntimeError(
+        "JWT_SECRET environment variable is required in production. "
+        "Set ENVIRONMENT=development to use a dev-only default."
+    )
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 24 * 7  # 1 week
 
