@@ -25,7 +25,6 @@ class _JournalListScreenState extends State<JournalListScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthService>();
     final journal = context.watch<JournalService>();
 
     return Scaffold(
@@ -34,128 +33,15 @@ class _JournalListScreenState extends State<JournalListScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top bar
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-              child: Row(
-                children: [
-                  // Shield + brand
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.shield_outlined,
-                        size: 20, color: AppColors.primary),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'InnerApple',
-                          style: GoogleFonts.newsreader(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                        Row(
-                          children: [
-                            Consumer<CryptoService>(
-                              builder: (_, crypto, _) => Container(
-                                width: 6,
-                                height: 6,
-                                decoration: BoxDecoration(
-                                  color: crypto.hasKeys
-                                      ? AppColors.primary
-                                      : AppColors.secondary,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'E2EE PROTECTED',
-                              style: AppTypography.labelSmall.copyWith(
-                                color: AppColors.onSurfaceVariant
-                                    .withValues(alpha: 0.6),
-                                letterSpacing: 2.0,
-                                fontSize: 9,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Username
-                  Text(
-                    '@${auth.currentUser?.username ?? ''}',
-                    style: AppTypography.bodySmall.copyWith(
-                      color: AppColors.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Logout
-                  GestureDetector(
-                    onTap: () {
-                      context
-                          .read<AuthService>()
-                          .logout(context.read<CryptoService>());
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: AppColors.surfaceContainerLow,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.logout,
-                          size: 16, color: AppColors.outline),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
+            _buildTopBar(),
             const SizedBox(height: 28),
-
-            // Section tabs (editorial style)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _SectionTab(
-                    label: 'My Entries',
-                    count: journal.entries.length,
-                    isActive: _showMyEntries,
-                    onTap: () => setState(() => _showMyEntries = true),
-                  ),
-                  const SizedBox(width: 24),
-                  _SectionTab(
-                    label: 'Shared with Me',
-                    count: journal.sharedWithMe.length,
-                    isActive: !_showMyEntries,
-                    onTap: () => setState(() => _showMyEntries = false),
-                  ),
-                ],
-              ),
-            ),
-
+            _buildSectionTabs(journal),
             const SizedBox(height: 20),
-
-            // Entry list
             Expanded(
               child: journal.loading
                   ? const Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.primary,
-                      ),
+                      child:
+                          CircularProgressIndicator(color: AppColors.primary),
                     )
                   : _EntryList(
                       entries: _showMyEntries
@@ -167,50 +53,174 @@ class _JournalListScreenState extends State<JournalListScreen> {
           ],
         ),
       ),
+      floatingActionButton: _buildFab(),
+    );
+  }
 
-      // FAB
-      floatingActionButton: Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [AppColors.primary, AppColors.primaryContainer],
+  // ── Top bar ─────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    final auth = context.watch<AuthService>();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Row(
+        children: [
+          _buildShieldBadge(),
+          const SizedBox(width: 10),
+          Expanded(child: _buildBrandColumn()),
+          Text(
+            '@${auth.currentUser?.username ?? ''}',
+            style: AppTypography.bodySmall.copyWith(
+              color: AppColors.onSurfaceVariant,
+            ),
           ),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.primary.withValues(alpha: 0.2),
-              blurRadius: 24,
-              spreadRadius: -4,
-              offset: const Offset(0, 8),
+          const SizedBox(width: 8),
+          _buildLogoutButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShieldBadge() {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        shape: BoxShape.circle,
+      ),
+      child:
+          const Icon(Icons.shield_outlined, size: 20, color: AppColors.primary),
+    );
+  }
+
+  Widget _buildBrandColumn() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'InnerApple',
+          style: GoogleFonts.newsreader(
+            fontSize: 20,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primary,
+          ),
+        ),
+        Row(
+          children: [
+            Consumer<CryptoService>(
+              builder: (_, crypto, _) => Container(
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  color:
+                      crypto.hasKeys ? AppColors.primary : AppColors.secondary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'E2EE PROTECTED',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                letterSpacing: 2.0,
+                fontSize: 9,
+              ),
             ),
           ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const EntryEditorScreen()),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.add, color: AppColors.onPrimary, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'New Entry',
-                    style: GoogleFonts.manrope(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.onPrimary,
-                    ),
+      ],
+    );
+  }
+
+  Widget _buildLogoutButton() {
+    return GestureDetector(
+      onTap: () {
+        context.read<AuthService>().logout(context.read<CryptoService>());
+      },
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceContainerLow,
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(Icons.logout, size: 16, color: AppColors.outline),
+      ),
+    );
+  }
+
+  // ── Section tabs ────────────────────────────────────────────────────────
+
+  Widget _buildSectionTabs(JournalService journal) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _SectionTab(
+            label: 'My Entries',
+            count: journal.entries.length,
+            isActive: _showMyEntries,
+            onTap: () => setState(() => _showMyEntries = true),
+          ),
+          const SizedBox(width: 24),
+          _SectionTab(
+            label: 'Shared with Me',
+            count: journal.sharedWithMe.length,
+            isActive: !_showMyEntries,
+            onTap: () => setState(() => _showMyEntries = false),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── FAB ─────────────────────────────────────────────────────────────────
+
+  Widget _buildFab() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.primary, AppColors.primaryContainer],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.2),
+            blurRadius: 24,
+            spreadRadius: -4,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const EntryEditorScreen()),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.add, color: AppColors.onPrimary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'New Entry',
+                  style: GoogleFonts.manrope(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.onPrimary,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -283,7 +293,7 @@ class _SectionTab extends StatelessWidget {
               height: 3,
               width: isActive ? 50 : 0,
               decoration: BoxDecoration(
-                color: _showMyEntries(label)
+                color: _isMyEntries(label)
                     ? AppColors.primary
                     : AppColors.secondary,
                 borderRadius: BorderRadius.circular(2),
@@ -295,7 +305,7 @@ class _SectionTab extends StatelessWidget {
     );
   }
 
-  bool _showMyEntries(String l) => l == 'My Entries';
+  bool _isMyEntries(String l) => l == 'My Entries';
 }
 
 // ── Entry List ──
@@ -379,131 +389,139 @@ class _EntryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Date + lock
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _formatDate(entry.updatedAt).toUpperCase(),
-                        style: AppTypography.labelSmall.copyWith(
-                          color: AppColors.onSurfaceVariant,
-                          letterSpacing: 2.0,
-                          fontSize: 10,
-                        ),
-                      ),
-                      if (!isOwned)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(
-                            'from ${entry.authorUsername}',
-                            style: AppTypography.bodySmall.copyWith(
-                              color: AppColors.tertiary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  Icon(
-                    entry.encryptedBlob != null
-                        ? Icons.lock
-                        : Icons.lock_open_outlined,
-                    size: 18,
-                    color: entry.encryptedBlob != null
-                        ? AppColors.primary.withValues(alpha: 0.4)
-                        : AppColors.outline.withValues(alpha: 0.3),
-                  ),
-                ],
-              ),
-
+              _buildHeader(),
               const SizedBox(height: 10),
-
-              // Content preview (serif headline style for first line)
-              Text(
-                preview.isEmpty ? '(empty)' : preview,
-                style: GoogleFonts.newsreader(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.onSurface,
-                  height: 1.4,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-
+              _buildPreview(preview),
               const SizedBox(height: 14),
-
-              // Bottom row: emotion badge + share count
-              Row(
-                children: [
-                  // Emotion badge
-                  Consumer<EmotionService>(
-                    builder: (_, emotion, _) {
-                      final result = emotion.cached(entry.id);
-                      if (result == null) return const SizedBox.shrink();
-                      const emoji = {
-                        'anger': '😠',
-                        'joy': '😊',
-                        'neutral': '😐',
-                        'sadness': '😢',
-                        'surprise': '😮',
-                      };
-                      final pct =
-                          (result.confidence * 100).toStringAsFixed(0);
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.secondaryFixed,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(emoji[result.emotion] ?? '🤔',
-                                style: const TextStyle(fontSize: 14)),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${result.emotion[0].toUpperCase()}${result.emotion.substring(1)} $pct%',
-                              style: GoogleFonts.manrope(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.onSecondaryFixed,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-                  const Spacer(),
-                  if (isOwned && entry.sharedWith.isNotEmpty)
-                    Row(
-                      children: [
-                        Icon(Icons.share_outlined,
-                            size: 14,
-                            color: AppColors.onSurfaceVariant
-                                .withValues(alpha: 0.5)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${entry.sharedWith.length}',
-                          style: AppTypography.bodySmall.copyWith(
-                            color: AppColors.onSurfaceVariant
-                                .withValues(alpha: 0.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
+              _buildFooter(),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _formatDate(entry.updatedAt).toUpperCase(),
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.onSurfaceVariant,
+                letterSpacing: 2.0,
+                fontSize: 10,
+              ),
+            ),
+            if (!isOwned)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  'from ${entry.authorUsername}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.tertiary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        Icon(
+          entry.encryptedBlob != null
+              ? Icons.lock
+              : Icons.lock_open_outlined,
+          size: 18,
+          color: entry.encryptedBlob != null
+              ? AppColors.primary.withValues(alpha: 0.4)
+              : AppColors.outline.withValues(alpha: 0.3),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPreview(String preview) {
+    return Text(
+      preview.isEmpty ? '(empty)' : preview,
+      style: GoogleFonts.newsreader(
+        fontSize: 18,
+        fontWeight: FontWeight.w500,
+        color: AppColors.onSurface,
+        height: 1.4,
+      ),
+      maxLines: 3,
+      overflow: TextOverflow.ellipsis,
+    );
+  }
+
+  Widget _buildFooter() {
+    return Row(
+      children: [
+        _buildEmotionChip(),
+        const Spacer(),
+        if (isOwned && entry.sharedWith.isNotEmpty)
+          _buildShareCount(),
+      ],
+    );
+  }
+
+  Widget _buildEmotionChip() {
+    return Consumer<EmotionService>(
+      builder: (_, emotion, _) {
+        final result = emotion.cached(entry.id);
+        if (result == null) return const SizedBox.shrink();
+        const emoji = {
+          'anger': '😠',
+          'joy': '😊',
+          'neutral': '😐',
+          'sadness': '😢',
+          'surprise': '😮',
+        };
+        final pct = (result.confidence * 100).toStringAsFixed(0);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: AppColors.secondaryFixed,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji[result.emotion] ?? '🤔',
+                  style: const TextStyle(fontSize: 14)),
+              const SizedBox(width: 6),
+              Text(
+                '${result.emotion[0].toUpperCase()}${result.emotion.substring(1)} $pct%',
+                style: GoogleFonts.manrope(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.onSecondaryFixed,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShareCount() {
+    return Row(
+      children: [
+        Icon(Icons.share_outlined,
+            size: 14,
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.5)),
+        const SizedBox(width: 4),
+        Text(
+          '${entry.sharedWith.length}',
+          style: AppTypography.bodySmall.copyWith(
+            color: AppColors.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
+        ),
+      ],
     );
   }
 
