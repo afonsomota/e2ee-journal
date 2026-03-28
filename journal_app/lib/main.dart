@@ -7,6 +7,8 @@ import 'services/journal_service.dart';
 import 'services/crypto_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/journal_list_screen.dart';
+import 'screens/splash_screen.dart';
+import 'theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,56 +32,33 @@ class JournalApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EmotionService()..initialize()),
       ],
       child: MaterialApp(
-        title: 'E2EE Journal',
+        title: 'InnerApple',
         debugShowCheckedModeBanner: false,
-        theme: _buildTheme(),
+        theme: buildAppTheme(),
         home: const _AppRoot(),
-      ),
-    );
-  }
-
-  ThemeData _buildTheme() {
-    const ink = Color(0xFF1A1A2E);
-    const parchment = Color(0xFFF5F0E8);
-    const accent = Color(0xFF8B6914);
-
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: const ColorScheme.light(
-        primary: ink,
-        secondary: accent,
-        surface: parchment,
-        onSurface: ink,
-      ),
-      appBarTheme: const AppBarTheme(
-        backgroundColor: ink,
-        foregroundColor: parchment,
-        elevation: 0,
-      ),
-      inputDecorationTheme: InputDecorationTheme(
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: accent, width: 2),
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: ink,
-          foregroundColor: parchment,
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
       ),
     );
   }
 }
 
-class _AppRoot extends StatelessWidget {
+class _AppRoot extends StatefulWidget {
   const _AppRoot();
 
   @override
+  State<_AppRoot> createState() => _AppRootState();
+}
+
+class _AppRootState extends State<_AppRoot> {
+  bool _showSplash = true;
+
+  @override
   Widget build(BuildContext context) {
+    if (_showSplash) {
+      return SplashScreen(
+        onComplete: () => setState(() => _showSplash = false),
+      );
+    }
+
     final auth = context.watch<AuthService>();
     if (auth.isLoggedIn) return const JournalListScreen();
     return const AuthScreen();

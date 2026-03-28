@@ -49,3 +49,7 @@ raw_implementation_plan.md
 
 # Generated protocol schemas
 journal_app/rust/schema/
+
+.claude/skills
+.drafts
+.references

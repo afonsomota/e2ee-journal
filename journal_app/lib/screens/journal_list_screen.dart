@@ -1,6 +1,7 @@
 // screens/journal_list_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 import '../services/auth_service.dart';
@@ -8,6 +9,7 @@ import '../services/journal_service.dart';
 import '../services/crypto_service.dart';
 import '../services/emotion_service.dart';
 import '../models/journal_entry.dart';
+import '../theme.dart';
 import 'entry_editor_screen.dart';
 import 'entry_detail_screen.dart';
 
@@ -18,156 +20,285 @@ class JournalListScreen extends StatefulWidget {
   State<JournalListScreen> createState() => _JournalListScreenState();
 }
 
-class _JournalListScreenState extends State<JournalListScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabs;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabs = TabController(length: 2, vsync: this);
-  }
-
-  @override
-  void dispose() {
-    _tabs.dispose();
-    super.dispose();
-  }
+class _JournalListScreenState extends State<JournalListScreen> {
+  bool _showMyEntries = true;
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
     final journal = context.watch<JournalService>();
-    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        title: Column(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Private Journal'),
-            Text(
-              auth.currentUser?.username ?? '',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w300),
-            ),
-          ],
-        ),
-        actions: [
-          // E2EE status badge
-          Consumer<CryptoService>(
-            builder: (_, crypto, __) => Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Chip(
-                avatar: Icon(
-                  crypto.hasKeys ? Icons.lock : Icons.lock_open,
-                  size: 14,
-                  color: crypto.hasKeys ? Colors.green.shade300 : Colors.orange,
-                ),
-                label: Text(
-                  crypto.hasKeys ? 'E2EE' : 'Encrypted',
-                  style: const TextStyle(fontSize: 11, color: Colors.white),
-                ),
-                backgroundColor: scheme.primary.withValues(alpha: 0.7),
-                padding: EdgeInsets.zero,
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => context.read<JournalService>().fetchAll(),
-            tooltip: 'Refresh',
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () {
-              context.read<AuthService>().logout(context.read<CryptoService>());
-            },
-            tooltip: 'Logout',
-          ),
-        ],
-        bottom: TabBar(
-          controller: _tabs,
-          labelColor: scheme.surface,
-          unselectedLabelColor: scheme.surface.withValues(alpha: 0.6),
-          indicatorColor: scheme.secondary,
-          tabs: [
-            Tab(
+            // Top bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.book_outlined, size: 16),
-                  const SizedBox(width: 6),
-                  const Text('My Entries'),
-                  if (journal.entries.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    _Badge('${journal.entries.length}'),
-                  ],
+                  // Shield + brand
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerLow,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.shield_outlined,
+                        size: 20, color: AppColors.primary),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'InnerApple',
+                          style: GoogleFonts.newsreader(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Consumer<CryptoService>(
+                              builder: (_, crypto, __) => Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: crypto.hasKeys
+                                      ? AppColors.primary
+                                      : AppColors.secondary,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'E2EE PROTECTED',
+                              style: AppTypography.labelSmall.copyWith(
+                                color: AppColors.onSurfaceVariant
+                                    .withValues(alpha: 0.6),
+                                letterSpacing: 2.0,
+                                fontSize: 9,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Username
+                  Text(
+                    '@${auth.currentUser?.username ?? ''}',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Logout
+                  GestureDetector(
+                    onTap: () {
+                      context
+                          .read<AuthService>()
+                          .logout(context.read<CryptoService>());
+                    },
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceContainerLow,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.logout,
+                          size: 16, color: AppColors.outline),
+                    ),
+                  ),
                 ],
               ),
             ),
-            Tab(
+
+            const SizedBox(height: 28),
+
+            // Section tabs (editorial style)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  const Icon(Icons.people_outline, size: 16),
-                  const SizedBox(width: 6),
-                  const Text('Shared with Me'),
-                  if (journal.sharedWithMe.isNotEmpty) ...[
-                    const SizedBox(width: 6),
-                    _Badge('${journal.sharedWithMe.length}'),
-                  ],
+                  _SectionTab(
+                    label: 'My Entries',
+                    count: journal.entries.length,
+                    isActive: _showMyEntries,
+                    onTap: () => setState(() => _showMyEntries = true),
+                  ),
+                  const SizedBox(width: 24),
+                  _SectionTab(
+                    label: 'Shared with Me',
+                    count: journal.sharedWithMe.length,
+                    isActive: !_showMyEntries,
+                    onTap: () => setState(() => _showMyEntries = false),
+                  ),
                 ],
               ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // Entry list
+            Expanded(
+              child: journal.loading
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : _EntryList(
+                      entries: _showMyEntries
+                          ? journal.entries
+                          : journal.sharedWithMe,
+                      isOwned: _showMyEntries,
+                    ),
             ),
           ],
         ),
       ),
-      body: journal.loading
-          ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabs,
-              children: [
-                _EntryList(
-                  entries: journal.entries,
-                  isOwned: true,
-                ),
-                _EntryList(
-                  entries: journal.sharedWithMe,
-                  isOwned: false,
-                ),
-              ],
+
+      // FAB
+      floatingActionButton: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [AppColors.primary, AppColors.primaryContainer],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.2),
+              blurRadius: 24,
+              spreadRadius: -4,
+              offset: const Offset(0, 8),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const EntryEditorScreen()),
+          ],
         ),
-        icon: const Icon(Icons.edit_outlined),
-        label: const Text('New Entry'),
-        backgroundColor: scheme.primary,
-        foregroundColor: scheme.surface,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const EntryEditorScreen()),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add, color: AppColors.onPrimary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'New Entry',
+                    style: GoogleFonts.manrope(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.onPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _Badge extends StatelessWidget {
+// ── Section Tab ──
+
+class _SectionTab extends StatelessWidget {
   final String label;
-  const _Badge(this.label);
+  final int count;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  const _SectionTab({
+    required this.label,
+    required this.count,
+    required this.isActive,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.secondary,
-        borderRadius: BorderRadius.circular(10),
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 200),
+        opacity: isActive ? 1.0 : 0.4,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.newsreader(
+                    fontSize: isActive ? 20 : 15,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.onSurface,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (count > 0)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 3,
+              width: isActive ? 50 : 0,
+              decoration: BoxDecoration(
+                color: _showMyEntries(label)
+                    ? AppColors.primary
+                    : AppColors.secondary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ],
+        ),
       ),
-      child: Text(label,
-          style: const TextStyle(fontSize: 10, color: Colors.white)),
     );
   }
+
+  bool _showMyEntries(String l) => l == 'My Entries';
 }
+
+// ── Entry List ──
 
 class _EntryList extends StatelessWidget {
   final List<JournalEntry> entries;
@@ -183,9 +314,9 @@ class _EntryList extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isOwned ? Icons.book_outlined : Icons.inbox_outlined,
-              size: 64,
-              color: Colors.grey.shade300,
+              isOwned ? Icons.auto_stories_outlined : Icons.inbox_outlined,
+              size: 56,
+              color: AppColors.outlineVariant,
             ),
             const SizedBox(height: 16),
             Text(
@@ -193,7 +324,9 @@ class _EntryList extends StatelessWidget {
                   ? 'No entries yet.\nTap the button to write your first.'
                   : 'Nothing shared with you yet.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade500),
+              style: AppTypography.bodyMedium.copyWith(
+                color: AppColors.outline,
+              ),
             ),
           ],
         ),
@@ -201,19 +334,21 @@ class _EntryList extends StatelessWidget {
     }
 
     return RefreshIndicator(
+      color: AppColors.primary,
       onRefresh: () => context.read<JournalService>().fetchAll(),
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
         itemCount: entries.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 8),
-        itemBuilder: (ctx, i) => _EntryCard(
-          entry: entries[i],
-          isOwned: isOwned,
+        itemBuilder: (ctx, i) => Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: _EntryCard(entry: entries[i], isOwned: isOwned),
         ),
       ),
     );
   }
 }
+
+// ── Entry Card ──
 
 class _EntryCard extends StatelessWidget {
   final JournalEntry entry;
@@ -223,16 +358,15 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final preview = entry.content.length > 120
-        ? '${entry.content.substring(0, 120)}…'
+    final preview = entry.content.length > 160
+        ? '${entry.content.substring(0, 160)}\u2026'
         : entry.content;
 
-    return Card(
-      elevation: 1,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Material(
+      color: AppColors.surfaceContainerLowest,
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(
@@ -241,78 +375,130 @@ class _EntryCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Date + lock
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _formatDate(entry.updatedAt).toUpperCase(),
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.onSurfaceVariant,
+                          letterSpacing: 2.0,
+                          fontSize: 10,
+                        ),
+                      ),
+                      if (!isOwned)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            'from ${entry.authorUsername}',
+                            style: AppTypography.bodySmall.copyWith(
+                              color: AppColors.tertiary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  Icon(
+                    entry.encryptedBlob != null
+                        ? Icons.lock
+                        : Icons.lock_open_outlined,
+                    size: 18,
+                    color: entry.encryptedBlob != null
+                        ? AppColors.primary.withValues(alpha: 0.4)
+                        : AppColors.outline.withValues(alpha: 0.3),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // Content preview (serif headline style for first line)
+              Text(
+                preview.isEmpty ? '(empty)' : preview,
+                style: GoogleFonts.newsreader(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.onSurface,
+                  height: 1.4,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+
+              const SizedBox(height: 14),
+
+              // Bottom row: emotion badge + share count
               Row(
                 children: [
-                  // Encryption indicator
-                  Icon(
-                    entry.encryptedBlob != null ? Icons.lock : Icons.lock_open,
-                    size: 14,
-                    color: entry.encryptedBlob != null
-                        ? Colors.green.shade600
-                        : Colors.orange,
+                  // Emotion badge
+                  Consumer<EmotionService>(
+                    builder: (_, emotion, __) {
+                      final result = emotion.cached(entry.id);
+                      if (result == null) return const SizedBox.shrink();
+                      const emoji = {
+                        'anger': '😠',
+                        'joy': '😊',
+                        'neutral': '😐',
+                        'sadness': '😢',
+                        'surprise': '😮',
+                      };
+                      final pct =
+                          (result.confidence * 100).toStringAsFixed(0);
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondaryFixed,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(emoji[result.emotion] ?? '🤔',
+                                style: const TextStyle(fontSize: 14)),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${result.emotion[0].toUpperCase()}${result.emotion.substring(1)} $pct%',
+                              style: GoogleFonts.manrope(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.onSecondaryFixed,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                  const SizedBox(width: 6),
-                  if (!isOwned)
-                    Text(
-                      'from ${entry.authorUsername}  ·  ',
-                      style: TextStyle(
-                          fontSize: 12, color: scheme.secondary),
-                    ),
-                  Expanded(
-                    child: Text(
-                      _formatDate(entry.updatedAt),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                  ),
+                  const Spacer(),
                   if (isOwned && entry.sharedWith.isNotEmpty)
                     Row(
                       children: [
-                        Icon(Icons.people_outline,
-                            size: 14, color: scheme.secondary),
+                        Icon(Icons.share_outlined,
+                            size: 14,
+                            color: AppColors.onSurfaceVariant
+                                .withValues(alpha: 0.5)),
                         const SizedBox(width: 4),
                         Text(
                           '${entry.sharedWith.length}',
-                          style: TextStyle(
-                              fontSize: 12, color: scheme.secondary),
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.onSurfaceVariant
+                                .withValues(alpha: 0.5),
+                          ),
                         ),
                       ],
                     ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                preview.isEmpty ? '(empty)' : preview,
-                style: const TextStyle(fontSize: 15, height: 1.4),
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
-              // Emotion chip (shown only when cached)
-              Consumer<EmotionService>(
-                builder: (_, emotion, __) {
-                  final result = emotion.cached(entry.id);
-                  if (result == null) return const SizedBox.shrink();
-                  const emoji = {
-                    'anger': '😠',
-                    'joy': '😊',
-                    'neutral': '😐',
-                    'sadness': '😢',
-                    'surprise': '😮',
-                  };
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      '${emoji[result.emotion] ?? '🤔'} ${result.emotion}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                  );
-                },
               ),
             ],
           ),
@@ -322,10 +508,19 @@ class _EntryCard extends StatelessWidget {
   }
 
   String _formatDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    const days = [
+      'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+      'Friday', 'Saturday', 'Sunday',
+    ];
     final now = DateTime.now();
     final diff = now.difference(dt);
-    if (diff.inDays == 0) return 'Today ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    if (diff.inDays == 0) return 'Today';
     if (diff.inDays == 1) return 'Yesterday';
-    return '${dt.day}/${dt.month}/${dt.year}';
+    if (diff.inDays < 7) return days[dt.weekday - 1];
+    return '${months[dt.month - 1]} ${dt.day}';
   }
 }

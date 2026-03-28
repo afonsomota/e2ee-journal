@@ -11,7 +11,9 @@ dependencies:
     sdk: flutter
 
   # FHE client plugin (native TFHE-rs via Cargokit)
-  flutter_concrete: ^0.3.0
+  #flutter_concrete: ^0.4.0
+  flutter_concrete:
+    path: ../flutter_concrete
 
   # HTTP client
   dio: ^5.4.0
@@ -36,6 +38,7 @@ dependencies:
   shared_preferences: ^2.2.2
 
   cupertino_icons: ^1.0.2
+  google_fonts: ^8.0.2
 
 dev_dependencies:
   flutter_test:
@@ -53,3 +56,4 @@ flutter:
     - assets/fhe/idf_weights.bin
     - assets/fhe/svd_components.bin
     - assets/fhe/client.zip
+    - assets/logo.png
