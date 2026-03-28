@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../config.dart';
 import '../models/user.dart';
 import 'crypto_service.dart';
 
@@ -30,7 +31,7 @@ class AuthService extends ChangeNotifier {
   String? get error => _error;
 
   final Dio _dio = Dio(BaseOptions(
-    baseUrl: 'http://localhost:8000', // Point to your FastAPI server
+    baseUrl: apiBaseUrl,
     connectTimeout: const Duration(seconds: 10),
   ));
 

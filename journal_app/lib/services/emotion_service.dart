@@ -21,6 +21,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_concrete/flutter_concrete.dart';
 
+import '../config.dart';
 import '../fhe/vectorizer.dart';
 import '../models/emotion_result.dart';
 import 'secure_key_storage.dart';
@@ -33,7 +34,7 @@ class EmotionService extends ChangeNotifier {
   final Vectorizer _vectorizer = Vectorizer();
 
   final Dio _backend = Dio(BaseOptions(
-    baseUrl: 'http://localhost:8000',
+    baseUrl: apiBaseUrl,
     connectTimeout: const Duration(seconds: 60),
     receiveTimeout: const Duration(minutes: 10),
   ));
