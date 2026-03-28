@@ -91,332 +91,360 @@ class _AuthScreenState extends State<AuthScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Branding
-                  Center(
-                    child: Image.asset('assets/logo.png', width: 80, height: 80),
-                  ),
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Text(
-                      'InnerApple',
-                      style: GoogleFonts.newsreader(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.shield_outlined,
-                            size: 12, color: AppColors.outline),
-                        const SizedBox(width: 6),
-                        Text(
-                          'END-TO-END ENCRYPTED',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.outline,
-                            letterSpacing: 2.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
+                  _buildBranding(),
                   const SizedBox(height: 40),
-
-                  // Form card
-                  Container(
-                    padding: const EdgeInsets.all(28),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceContainerLow,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Tabs
-                        AnimatedBuilder(
-                          animation: _tabs,
-                          builder: (_, _) => Row(
-                            children: [
-                              _TabButton(
-                                label: 'Sign In',
-                                isActive: _tabs.index == 0,
-                                onTap: () =>
-                                    _tabs.animateTo(0),
-                              ),
-                              const SizedBox(width: 24),
-                              _TabButton(
-                                label: 'Register',
-                                isActive: _tabs.index == 1,
-                                onTap: () =>
-                                    _tabs.animateTo(1),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 28),
-
-                        // Username
-                        Text(
-                          'USERNAME',
-                          style: AppTypography.labelSmall.copyWith(
-                            color: AppColors.outline,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _usernameCtrl,
-                          decoration: const InputDecoration(
-                            hintText: 'Enter your username',
-                          ),
-                          textInputAction: TextInputAction.next,
-                          autocorrect: false,
-                          style: AppTypography.bodyLarge,
-                        ),
-
-                        const SizedBox(height: 20),
-
-                        // Password
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'PASSWORD',
-                              style: AppTypography.labelSmall.copyWith(
-                                color: AppColors.outline,
-                              ),
-                            ),
-                            AnimatedBuilder(
-                              animation: _tabs,
-                              builder: (_, _) => _tabs.index == 0
-                                  ? GestureDetector(
-                                      onTap: () {},
-                                      child: Text(
-                                        'FORGOT?',
-                                        style:
-                                            AppTypography.labelSmall.copyWith(
-                                          color: AppColors.primary,
-                                          letterSpacing: 1.0,
-                                        ),
-                                      ),
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        TextField(
-                          controller: _passwordCtrl,
-                          decoration: InputDecoration(
-                            hintText: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                color: AppColors.outline,
-                              ),
-                              onPressed: () => setState(
-                                  () => _obscurePassword = !_obscurePassword),
-                            ),
-                          ),
-                          obscureText: _obscurePassword,
-                          textInputAction: TextInputAction.done,
-                          style: AppTypography.bodyLarge,
-                          onSubmitted: (_) {
-                            _submit(_tabs.index == 1);
-                          },
-                        ),
-
-                        const SizedBox(height: 16),
-
-                        // KDF warning (register tab)
-                        AnimatedBuilder(
-                          animation: _tabs,
-                          builder: (_, _) {
-                            if (_tabs.index != 1) {
-                              return const SizedBox.shrink();
-                            }
-                            return Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.secondaryFixed
-                                    .withValues(alpha: 0.5),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Icon(Icons.warning_rounded,
-                                      color: AppColors.secondary, size: 20),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          'CRITICAL SECURITY NOTE',
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: 1.5,
-                                            color: AppColors.secondary,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Your password is your unique encryption key. '
-                                          'If lost, your data cannot be recovered by '
-                                          'anyone\u2014even us.',
-                                          style: GoogleFonts.manrope(
-                                            fontSize: 12,
-                                            color: const Color(0xFF541100),
-                                            height: 1.5,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-
-                        // Loading state
-                        if (_loading) ...[
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              _BouncingDots(),
-                              const SizedBox(width: 10),
-                              Text(
-                                'DERIVING SECURE LOCAL KEY\u2026',
-                                style: AppTypography.labelSmall.copyWith(
-                                  color: AppColors.outline,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-
-                        const SizedBox(height: 24),
-
-                        // Continue button (gradient)
-                        AnimatedBuilder(
-                          animation: _tabs,
-                          builder: (_, _) {
-                            final isRegister = _tabs.index == 1;
-                            return _GradientButton(
-                              label: 'CONTINUE',
-                              icon: Icons.arrow_forward,
-                              onPressed:
-                                  _loading ? null : () => _submit(isRegister),
-                            );
-                          },
-                        ),
-
-                        // Divider "or"
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  height: 1,
-                                  color: AppColors.outlineVariant
-                                      .withValues(alpha: 0.3),
-                                ),
-                              ),
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 16),
-                                child: Text(
-                                  'OR',
-                                  style: AppTypography.labelSmall.copyWith(
-                                    color: AppColors.outline,
-                                    letterSpacing: 3.0,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Container(
-                                  height: 1,
-                                  color: AppColors.outlineVariant
-                                      .withValues(alpha: 0.3),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        // Continue with Google
-                        Material(
-                          color: AppColors.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(12),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: _loading
-                                ? null
-                                : () {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content:
-                                            Text('Google sign-in coming soon'),
-                                      ),
-                                    );
-                                  },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.g_mobiledata,
-                                      size: 24,
-                                      color: AppColors.onSurface),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'CONTINUE WITH GOOGLE',
-                                    style: GoogleFonts.manrope(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 1.5,
-                                      color: AppColors.onSurface,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
+                  _buildFormCard(),
                   const SizedBox(height: 24),
-
-                  // Footer
-                  Center(
-                    child: Text(
-                      'By continuing, you agree to our Privacy Charter.\n'
-                      'InnerApple uses Zero-Knowledge architecture.',
-                      textAlign: TextAlign.center,
-                      style: AppTypography.bodySmall.copyWith(
-                        color: AppColors.outline,
-                        height: 1.6,
-                      ),
-                    ),
-                  ),
+                  _buildFooter(),
                 ],
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  // ── Branding section ────────────────────────────────────────────────────
+
+  Widget _buildBranding() {
+    return Column(
+      children: [
+        Center(
+          child: Image.asset('assets/logo.png', width: 80, height: 80),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: Text(
+            'InnerApple',
+            style: GoogleFonts.newsreader(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              color: AppColors.primary,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.shield_outlined,
+                  size: 12, color: AppColors.outline),
+              const SizedBox(width: 6),
+              Text(
+                'END-TO-END ENCRYPTED',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.outline,
+                  letterSpacing: 2.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Form card ───────────────────────────────────────────────────────────
+
+  Widget _buildFormCard() {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildTabSelector(),
+          const SizedBox(height: 28),
+          _buildUsernameField(),
+          const SizedBox(height: 20),
+          _buildPasswordField(),
+          const SizedBox(height: 16),
+          _buildKdfWarning(),
+          _buildLoadingIndicator(),
+          const SizedBox(height: 24),
+          _buildContinueButton(),
+          _buildOrDivider(),
+          _buildGoogleButton(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabSelector() {
+    return AnimatedBuilder(
+      animation: _tabs,
+      builder: (_, _) => Row(
+        children: [
+          _TabButton(
+            label: 'Sign In',
+            isActive: _tabs.index == 0,
+            onTap: () => _tabs.animateTo(0),
+          ),
+          const SizedBox(width: 24),
+          _TabButton(
+            label: 'Register',
+            isActive: _tabs.index == 1,
+            onTap: () => _tabs.animateTo(1),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUsernameField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'USERNAME',
+          style: AppTypography.labelSmall.copyWith(
+            color: AppColors.outline,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _usernameCtrl,
+          decoration: const InputDecoration(
+            hintText: 'Enter your username',
+          ),
+          textInputAction: TextInputAction.next,
+          autocorrect: false,
+          style: AppTypography.bodyLarge,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'PASSWORD',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.outline,
+              ),
+            ),
+            AnimatedBuilder(
+              animation: _tabs,
+              builder: (_, _) => _tabs.index == 0
+                  ? GestureDetector(
+                      onTap: () {},
+                      child: Text(
+                        'FORGOT?',
+                        style: AppTypography.labelSmall.copyWith(
+                          color: AppColors.primary,
+                          letterSpacing: 1.0,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          controller: _passwordCtrl,
+          decoration: InputDecoration(
+            hintText: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePassword
+                    ? Icons.visibility_outlined
+                    : Icons.visibility_off_outlined,
+                color: AppColors.outline,
+              ),
+              onPressed: () =>
+                  setState(() => _obscurePassword = !_obscurePassword),
+            ),
+          ),
+          obscureText: _obscurePassword,
+          textInputAction: TextInputAction.done,
+          style: AppTypography.bodyLarge,
+          onSubmitted: (_) {
+            _submit(_tabs.index == 1);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildKdfWarning() {
+    return AnimatedBuilder(
+      animation: _tabs,
+      builder: (_, _) {
+        if (_tabs.index != 1) {
+          return const SizedBox.shrink();
+        }
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.secondaryFixed.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.warning_rounded,
+                  color: AppColors.secondary, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CRITICAL SECURITY NOTE',
+                      style: GoogleFonts.manrope(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.5,
+                        color: AppColors.secondary,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Your password is your unique encryption key. '
+                      'If lost, your data cannot be recovered by '
+                      'anyone\u2014even us.',
+                      style: GoogleFonts.manrope(
+                        fontSize: 12,
+                        color: const Color(0xFF541100),
+                        height: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoadingIndicator() {
+    if (!_loading) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Row(
+        children: [
+          _BouncingDots(),
+          const SizedBox(width: 10),
+          Text(
+            'DERIVING SECURE LOCAL KEY\u2026',
+            style: AppTypography.labelSmall.copyWith(
+              color: AppColors.outline,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContinueButton() {
+    return AnimatedBuilder(
+      animation: _tabs,
+      builder: (_, _) {
+        final isRegister = _tabs.index == 1;
+        return _GradientButton(
+          label: 'CONTINUE',
+          icon: Icons.arrow_forward,
+          onPressed: _loading ? null : () => _submit(isRegister),
+        );
+      },
+    );
+  }
+
+  Widget _buildOrDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 1,
+              color: AppColors.outlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'OR',
+              style: AppTypography.labelSmall.copyWith(
+                color: AppColors.outline,
+                letterSpacing: 3.0,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: AppColors.outlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return Material(
+      color: AppColors.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: _loading
+            ? null
+            : () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Google sign-in coming soon'),
+                  ),
+                );
+              },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.g_mobiledata,
+                  size: 24, color: AppColors.onSurface),
+              const SizedBox(width: 8),
+              Text(
+                'CONTINUE WITH GOOGLE',
+                style: GoogleFonts.manrope(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.5,
+                  color: AppColors.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Footer ──────────────────────────────────────────────────────────────
+
+  Widget _buildFooter() {
+    return Center(
+      child: Text(
+        'By continuing, you agree to our Privacy Charter.\n'
+        'InnerApple uses Zero-Knowledge architecture.',
+        textAlign: TextAlign.center,
+        style: AppTypography.bodySmall.copyWith(
+          color: AppColors.outline,
+          height: 1.6,
         ),
       ),
     );
