@@ -52,14 +52,22 @@ class EmotionService extends ChangeNotifier {
   }
 
   void update(AuthService auth) {
+    final previousToken = _auth?.token;
     _auth = auth;
-    if (auth.isLoggedIn && !_initialized) {
+    if (!auth.isLoggedIn) {
+      _initialized = false;
+      _initializing = false;
+      _available = false;
+      return;
+    }
+    if (!_initialized || auth.token != previousToken) {
+      _initialized = false;
       unawaited(initialize());
     }
   }
 
-  String? _clientId;
   bool _initialized = false;
+  bool _initializing = false;
   bool _available = false;
 
   final Map<String, EmotionResult> _cache = {};
@@ -75,10 +83,11 @@ class EmotionService extends ChangeNotifier {
 
   /// Initialize FHE keys and upload eval key to backend.
   Future<void> initialize() async {
-    if (_initialized) {
-      dev.log('[EmotionService] already initialized, skipping');
+    if (_initialized || _initializing) {
+      dev.log('[EmotionService] already initialized/initializing, skipping');
       return;
     }
+    _initializing = true;
     try {
       dev.log('[EmotionService] starting FHE setup...');
 
@@ -92,12 +101,10 @@ class EmotionService extends ChangeNotifier {
         ),
       ]);
 
-      _clientId = 'dart-fhe-client';
       dev.log('[EmotionService] FHE setup complete, uploading eval key...');
 
-      // 2. Upload evaluation key to backend
+      // 2. Upload evaluation key to backend (scoped by authenticated user ID)
       await _backend.post('/fhe/key', data: {
-        'client_id': _clientId,
         'evaluation_key_b64': _concrete.serverKeyBase64,
       });
 
@@ -118,6 +125,8 @@ class EmotionService extends ChangeNotifier {
     } catch (e) {
       dev.log('[EmotionService] initialize failed: $e');
       _available = false;
+    } finally {
+      _initializing = false;
     }
   }
 
@@ -150,7 +159,6 @@ class EmotionService extends ChangeNotifier {
       // 3. Send to server
       dev.log('[EmotionService] classifyEntry($entryId): posting to /fhe/predict...');
       final predResp = await _backend.post('/fhe/predict', data: {
-        'client_id': _clientId,
         'encrypted_input_b64': base64Encode(ciphertext),
       });
       final encryptedResultB64 =
