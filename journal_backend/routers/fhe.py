@@ -10,14 +10,19 @@
 #   • Decrypted predictions.
 # This matches the existing E2EE trust model.
 
+from __future__ import annotations
+
 import base64
 import os
 import time
 from pathlib import Path
-
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from concrete.ml.deployment import FHEModelServer
 
 from log import get_logger
 from routers.auth import current_user
@@ -33,10 +38,10 @@ FHE_MODEL_DIR = os.environ.get(
     str(Path(__file__).parent.parent / "fhe_model"),
 )
 
-_server = None
+_server: FHEModelServer | None = None
 
 
-def _get_server():
+def _get_server() -> FHEModelServer:
     """Lazy-load the FHE server to avoid import cost at startup."""
     global _server
     if _server is None:
