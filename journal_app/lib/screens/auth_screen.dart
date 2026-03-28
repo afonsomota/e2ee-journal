@@ -140,7 +140,7 @@ class _AuthScreenState extends State<AuthScreen>
                         // Tabs
                         AnimatedBuilder(
                           animation: _tabs,
-                          builder: (_, __) => Row(
+                          builder: (_, _) => Row(
                             children: [
                               _TabButton(
                                 label: 'Sign In',
@@ -193,7 +193,7 @@ class _AuthScreenState extends State<AuthScreen>
                             ),
                             AnimatedBuilder(
                               animation: _tabs,
-                              builder: (_, __) => _tabs.index == 0
+                              builder: (_, _) => _tabs.index == 0
                                   ? GestureDetector(
                                       onTap: () {},
                                       child: Text(
@@ -238,7 +238,7 @@ class _AuthScreenState extends State<AuthScreen>
                         // KDF warning (register tab)
                         AnimatedBuilder(
                           animation: _tabs,
-                          builder: (_, __) {
+                          builder: (_, _) {
                             if (_tabs.index != 1) {
                               return const SizedBox.shrink();
                             }
@@ -311,7 +311,7 @@ class _AuthScreenState extends State<AuthScreen>
                         // Continue button (gradient)
                         AnimatedBuilder(
                           animation: _tabs,
-                          builder: (_, __) {
+                          builder: (_, _) {
                             final isRegister = _tabs.index == 1;
                             return _GradientButton(
                               label: 'CONTINUE',
@@ -558,7 +558,7 @@ class _BouncingDotsState extends State<_BouncingDots>
       children: _controllers.map((ctrl) {
         return AnimatedBuilder(
           animation: ctrl,
-          builder: (_, __) => Container(
+          builder: (_, _) => Container(
             margin: const EdgeInsets.symmetric(horizontal: 2),
             width: 6,
             height: 6,

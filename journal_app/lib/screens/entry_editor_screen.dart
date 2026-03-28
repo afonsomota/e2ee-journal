@@ -203,7 +203,7 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
                     // Emotion badge (edit mode, cached)
                     if (_isEditing)
                       Consumer<EmotionService>(
-                        builder: (_, emotion, __) {
+                        builder: (_, emotion, _) {
                           final result = emotion.cached(widget.entry!.id);
                           if (!emotion.available || result == null) {
                             return const SizedBox.shrink();

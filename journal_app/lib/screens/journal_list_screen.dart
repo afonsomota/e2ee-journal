@@ -66,7 +66,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
                         Row(
                           children: [
                             Consumer<CryptoService>(
-                              builder: (_, crypto, __) => Container(
+                              builder: (_, crypto, _) => Container(
                                 width: 6,
                                 height: 6,
                                 decoration: BoxDecoration(
@@ -441,7 +441,7 @@ class _EntryCard extends StatelessWidget {
                 children: [
                   // Emotion badge
                   Consumer<EmotionService>(
-                    builder: (_, emotion, __) {
+                    builder: (_, emotion, _) {
                       final result = emotion.cached(entry.id);
                       if (result == null) return const SizedBox.shrink();
                       const emoji = {

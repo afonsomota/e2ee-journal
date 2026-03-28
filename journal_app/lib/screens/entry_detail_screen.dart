@@ -168,7 +168,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
 
                     // Emotion badge
                     Consumer<EmotionService>(
-                      builder: (_, emotion, __) {
+                      builder: (_, emotion, _) {
                         if (!emotion.available) return const SizedBox.shrink();
                         final result = emotion.cached(entry.id);
                         if (result != null) {
