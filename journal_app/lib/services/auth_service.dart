@@ -6,6 +6,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
@@ -16,6 +17,8 @@ const _kUserId = 'auth_user_id';
 const _kUsername = 'auth_username';
 
 class AuthService extends ChangeNotifier {
+  final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
+
   User? _currentUser;
   String? _token;
   bool _isLoggedIn = false;
@@ -120,15 +123,19 @@ class AuthService extends ChangeNotifier {
     _token = null;
     _isLoggedIn = false;
     await crypto.clearKeys();
+    await _secureStorage.delete(key: _kToken);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear();
+    await prefs.remove(_kUserId);
+    await prefs.remove(_kUsername);
     notifyListeners();
   }
 
   Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (_token != null) await prefs.setString(_kToken, _token!);
+    if (_token != null) {
+      await _secureStorage.write(key: _kToken, value: _token!);
+    }
     if (_currentUser != null) {
+      final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kUserId, _currentUser!.id);
       await prefs.setString(_kUsername, _currentUser!.username);
     }
@@ -136,7 +143,19 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> tryRestoreSession(CryptoService crypto) async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString(_kToken);
+
+    // Read token from secure storage (preferred), with migration from
+    // SharedPreferences for users upgrading from the old storage location.
+    _token = await _secureStorage.read(key: _kToken);
+    if (_token == null) {
+      final oldToken = prefs.getString(_kToken);
+      if (oldToken != null) {
+        _token = oldToken;
+        await _secureStorage.write(key: _kToken, value: oldToken);
+        await prefs.remove(_kToken);
+      }
+    }
+
     final userId = prefs.getString(_kUserId);
     final username = prefs.getString(_kUsername);
 
