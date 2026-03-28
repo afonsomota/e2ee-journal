@@ -54,6 +54,10 @@ class AuthResponse(BaseModel):
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+# Pre-computed dummy hash for constant-time login rejection when user not found.
+_DUMMY_HASH = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=12)).decode()
+
+
 def _create_token(user_id: str, username: str) -> str:
     payload = {
         "sub": user_id,
@@ -149,9 +153,11 @@ async def login(req: LoginRequest, db=Depends(get_db)):
     ) as cur:
         row = await cur.fetchone()
 
-    if row is None or not bcrypt.checkpw(
-        req.password.encode(), row["password_hash"].encode()
-    ):
+    # Always run bcrypt to prevent timing-based user enumeration.
+    stored_hash = row["password_hash"] if row is not None else _DUMMY_HASH
+    password_ok = bcrypt.checkpw(req.password.encode(), stored_hash.encode())
+
+    if row is None or not password_ok:
         logger.warning(f"Login failed for username: {req.username}")
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
