@@ -29,6 +29,71 @@ class TestFheAuthentication:
         assert resp.status_code == 403
 
 
+class TestFlutterClientAuthBug:
+    """Regression test for the 403 Forbidden error from the Flutter app.
+
+    Root cause: security hardening added Depends(current_user) to both FHE
+    endpoints (/fhe/key and /fhe/predict), but EmotionService._backend (Dio)
+    is configured without an Authorization header / auth interceptor.
+
+    Compare:
+      - journal_service.dart: adds "Authorization: Bearer <token>" via
+        an InterceptorsWrapper on every request.
+      - emotion_service.dart: creates a plain Dio(BaseOptions(...)) with
+        NO auth interceptor — so all calls hit the backend unauthenticated.
+
+    Flutter-side fix needed (emotion_service.dart):
+      EmotionService needs access to the AuthService token and must include
+      an Authorization header on _backend, e.g. via an interceptor like
+      JournalService._dio does:
+          opts.headers['Authorization'] = 'Bearer ${_auth!.token}';
+    """
+
+    def test_upload_key_without_auth_returns_403(self, client):
+        """Reproduces the exact request EmotionService.initialize() sends.
+
+        EmotionService posts to /fhe/key with no Authorization header,
+        which results in a 403 because the endpoint requires current_user.
+        """
+        resp = client.post(
+            "/fhe/key",
+            json={
+                "evaluation_key_b64": "dGVzdA==",
+            },
+            # No Authorization header — this is what the Flutter app does
+        )
+        assert resp.status_code == 403, (
+            f"Expected 403 Forbidden (no auth token), got {resp.status_code}"
+        )
+
+    def test_predict_without_auth_returns_403(self, client):
+        """Reproduces the request EmotionService.classifyEntry() sends.
+
+        EmotionService posts to /fhe/predict with no Authorization header.
+        """
+        resp = client.post(
+            "/fhe/predict",
+            json={
+                "encrypted_input_b64": "dGVzdA==",
+            },
+        )
+        assert resp.status_code == 403, (
+            f"Expected 403 Forbidden (no auth token), got {resp.status_code}"
+        )
+
+    def test_upload_key_with_auth_succeeds(self, client, register_user):
+        """Same request but WITH the auth token — this is the expected fix."""
+        auth_header, _user = register_user()
+        with patch("routers.fhe.fhe") as mock_fhe:
+            mock_fhe.EvaluationKeys.deserialize.return_value = MagicMock()
+            resp = client.post(
+                "/fhe/key",
+                json={"evaluation_key_b64": "dGVzdA=="},
+                headers=auth_header,
+            )
+        assert resp.status_code == 200
+
+
 class TestUploadEvaluationKey:
     def test_upload_key(self, client, register_user):
         auth_header, _user = register_user()

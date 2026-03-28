@@ -24,6 +24,7 @@ import 'package:flutter_concrete/flutter_concrete.dart';
 import '../config.dart';
 import '../fhe/vectorizer.dart';
 import '../models/emotion_result.dart';
+import 'auth_service.dart';
 import 'secure_key_storage.dart';
 
 /// Emotion label order — must match training config LABELS list.
@@ -33,11 +34,29 @@ class EmotionService extends ChangeNotifier {
   final ConcreteClient _concrete = ConcreteClient();
   final Vectorizer _vectorizer = Vectorizer();
 
-  final Dio _backend = Dio(BaseOptions(
-    baseUrl: apiBaseUrl,
-    connectTimeout: const Duration(seconds: 60),
-    receiveTimeout: const Duration(minutes: 10),
-  ));
+  late final Dio _backend;
+  AuthService? _auth;
+
+  EmotionService() {
+    _backend = Dio(BaseOptions(
+      baseUrl: apiBaseUrl,
+      connectTimeout: const Duration(seconds: 60),
+      receiveTimeout: const Duration(minutes: 10),
+    ));
+    _backend.interceptors.add(InterceptorsWrapper(onRequest: (opts, handler) {
+      if (_auth?.token != null) {
+        opts.headers['Authorization'] = 'Bearer ${_auth!.token}';
+      }
+      handler.next(opts);
+    }));
+  }
+
+  void update(AuthService auth) {
+    _auth = auth;
+    if (auth.isLoggedIn && !_initialized) {
+      unawaited(initialize());
+    }
+  }
 
   String? _clientId;
   bool _initialized = false;
