@@ -54,6 +54,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# TODO(security): In production, deploy behind a reverse proxy (nginx/Caddy)
+# configured with request body size limits:
+#   - /fhe/key: ~150 MB (evaluation keys are ~120 MB serialized)
+#   - /fhe/predict: ~10 MB (encrypted feature vectors)
+#   - /entries, /auth: ~1 MB (journal blobs and auth payloads)
+# Also configure rate limiting at the proxy level (see H4 below).
+#
+# TODO(security/H4): Add application-level rate limiting (e.g. slowapi)
+# for /auth/login and /auth/register to mitigate brute-force attacks.
+
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(entries.router, prefix="/entries", tags=["entries"])
 app.include_router(users.router, prefix="/users", tags=["users"])
