@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: ^3.11.0
 
 dependencies:
   flutter:
@@ -23,7 +23,8 @@ dependencies:
 
   # Cryptography — libsodium bindings for Dart (sumo variant for pwhash)
   # Covers: Argon2id KDF, X25519 keypairs, XSalsa20-Poly1305 box, SecretBox
-  sodium_libs: ^3.4.6
+  # sodium_libs is discontinued; sodium 4.x includes native binaries directly.
+  sodium: ^4.0.0
 
   # State management
   provider: ^6.1.1
