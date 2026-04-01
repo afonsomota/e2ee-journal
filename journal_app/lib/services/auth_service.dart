@@ -16,6 +16,7 @@ import 'crypto_service.dart';
 const _kToken = 'auth_token';
 const _kUserId = 'auth_user_id';
 const _kUsername = 'auth_username';
+const _kOfflineMode = 'offline_mode';
 
 class AuthService extends ChangeNotifier {
   final FlutterSecureStorage _secureStorage = const FlutterSecureStorage();
@@ -23,11 +24,13 @@ class AuthService extends ChangeNotifier {
   User? _currentUser;
   String? _token;
   bool _isLoggedIn = false;
+  bool _isOfflineMode = false;
   String? _error;
 
   User? get currentUser => _currentUser;
   String? get token => _token;
   bool get isLoggedIn => _isLoggedIn;
+  bool get isOfflineMode => _isOfflineMode;
   String? get error => _error;
 
   final Dio _dio = Dio(BaseOptions(
@@ -60,7 +63,9 @@ class AuthService extends ChangeNotifier {
         'encrypted_private_key': keys.encryptedPrivateKey,
       });
 
-      return _handleAuthResponse(resp.data);
+      final ok = _handleAuthResponse(resp.data);
+      if (ok) await _exitOfflineMode();
+      return ok;
     } on DioException catch (e) {
       _error = e.response?.data?['detail'] ?? 'Registration failed';
       notifyListeners();
@@ -93,12 +98,28 @@ class AuthService extends ChangeNotifier {
         await crypto.loadPublicKey(userData['public_key'] as String);
       }
 
+      await _exitOfflineMode();
       return true;
     } on DioException catch (e) {
       _error = e.response?.data?['detail'] ?? 'Login failed';
       notifyListeners();
       return false;
     }
+  }
+
+  // ── Offline mode ───────────────────────────────────────────────────────────
+
+  Future<void> enterOfflineMode() async {
+    _isOfflineMode = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOfflineMode, true);
+    notifyListeners();
+  }
+
+  Future<void> _exitOfflineMode() async {
+    _isOfflineMode = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOfflineMode, false);
   }
 
   // ── Shared ─────────────────────────────────────────────────────────────────
@@ -144,6 +165,9 @@ class AuthService extends ChangeNotifier {
 
   Future<bool> tryRestoreSession(CryptoService crypto) async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Check if user was in offline mode.
+    _isOfflineMode = prefs.getBool(_kOfflineMode) ?? false;
 
     // Read token from secure storage (preferred), with migration from
     // SharedPreferences for users upgrading from the old storage location.

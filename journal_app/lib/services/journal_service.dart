@@ -4,15 +4,20 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
+import 'package:uuid/uuid.dart';
 
 import '../config.dart';
 import '../models/journal_entry.dart';
 import 'auth_service.dart';
 import 'crypto_service.dart';
+import 'local_storage_service.dart';
 
 class JournalService extends ChangeNotifier {
   AuthService? _auth;
   CryptoService? _crypto;
+  final LocalStorageService _localStorage = LocalStorageService();
+  final Uuid _uuid = const Uuid();
+  bool _localLoaded = false;
 
   List<JournalEntry> _entries = [];
   List<JournalEntry> _sharedWithMe = [];
@@ -23,6 +28,8 @@ class JournalService extends ChangeNotifier {
   List<JournalEntry> get sharedWithMe => _sharedWithMe;
   bool get loading => _loading;
   String? get error => _error;
+
+  bool get _isOffline => _auth?.isOfflineMode == true;
 
 
   Dio get _dio {
@@ -42,7 +49,11 @@ class JournalService extends ChangeNotifier {
   void update(AuthService auth, CryptoService crypto) {
     _auth = auth;
     _crypto = crypto;
-    if (auth.isLoggedIn) fetchAll();
+    if (auth.isLoggedIn) {
+      fetchAll();
+    } else if (auth.isOfflineMode && !_localLoaded) {
+      _loadLocalEntries();
+    }
   }
 
   // ── Create entry (hybrid encryption) ─────────────────────────────────────
@@ -104,6 +115,10 @@ class JournalService extends ChangeNotifier {
   // ── Fetch & decrypt entries ───────────────────────────────────────────────
 
   Future<void> fetchAll() async {
+    if (_isOffline) {
+      await _loadLocalEntries();
+      return;
+    }
     _setLoading(true);
     try {
       // My entries
@@ -255,6 +270,51 @@ class JournalService extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  // ── Local (offline) CRUD ─────────────────────────────────────────────────
+
+  Future<void> createEntryLocal(String content) async {
+    final now = DateTime.now();
+    final entry = JournalEntry(
+      id: _uuid.v4(),
+      authorId: 'local',
+      authorUsername: 'me',
+      createdAt: now,
+      updatedAt: now,
+      content: content,
+    );
+    _entries.insert(0, entry);
+    await _localStorage.saveEntries(_entries);
+    notifyListeners();
+  }
+
+  Future<void> updateEntryLocal(String entryId, String newContent) async {
+    final idx = _entries.indexWhere((e) => e.id == entryId);
+    if (idx == -1) return;
+    final old = _entries[idx];
+    _entries[idx] = JournalEntry(
+      id: old.id,
+      authorId: old.authorId,
+      authorUsername: old.authorUsername,
+      createdAt: old.createdAt,
+      updatedAt: DateTime.now(),
+      content: newContent,
+    );
+    await _localStorage.saveEntries(_entries);
+    notifyListeners();
+  }
+
+  Future<void> deleteEntryLocal(String entryId) async {
+    _entries.removeWhere((e) => e.id == entryId);
+    await _localStorage.saveEntries(_entries);
+    notifyListeners();
+  }
+
+  Future<void> _loadLocalEntries() async {
+    _entries = await _localStorage.loadEntries();
+    _localLoaded = true;
+    notifyListeners();
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
