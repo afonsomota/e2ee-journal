@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/journal_entry.dart';
 import '../models/emotion_result.dart';
+import '../services/auth_service.dart';
 import '../services/journal_service.dart';
 import '../services/emotion_service.dart';
 import '../theme.dart';
@@ -75,6 +76,7 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
   Widget _buildTopBar() {
     final entry = widget.entry;
     final isOwned = widget.isOwned;
+    final isOffline = context.watch<AuthService>().isOfflineMode;
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 8, 12, 0),
       child: Row(
@@ -105,10 +107,11 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
                 ),
               ),
             ),
-            _AppBarAction(
-              icon: Icons.share_outlined,
-              onTap: () => _showShareDialog(context),
-            ),
+            if (!isOffline)
+              _AppBarAction(
+                icon: Icons.share_outlined,
+                onTap: () => _showShareDialog(context),
+              ),
           ],
         ],
       ),
@@ -119,6 +122,21 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
 
   Widget _buildDateAndEncryptionRow() {
     final entry = widget.entry;
+    final isOffline = context.watch<AuthService>().isOfflineMode;
+
+    String statusLabel;
+    IconData? statusIcon;
+    if (isOffline) {
+      statusLabel = 'Stored on device';
+      statusIcon = Icons.smartphone;
+    } else if (entry.encryptedBlob != null) {
+      statusLabel = 'End-to-end Encrypted';
+      statusIcon = null;
+    } else {
+      statusLabel = 'Standard';
+      statusIcon = null;
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -141,21 +159,22 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: BoxDecoration(
-                  color: entry.encryptedBlob != null
-                      ? AppColors.primary
-                      : AppColors.outline,
-                  shape: BoxShape.circle,
+              if (statusIcon != null)
+                Icon(statusIcon, size: 12, color: AppColors.outline)
+              else
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: entry.encryptedBlob != null
+                        ? AppColors.primary
+                        : AppColors.outline,
+                    shape: BoxShape.circle,
+                  ),
                 ),
-              ),
               const SizedBox(width: 6),
               Text(
-                entry.encryptedBlob != null
-                    ? 'End-to-end Encrypted'
-                    : 'Standard',
+                statusLabel,
                 style: GoogleFonts.manrope(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
@@ -378,7 +397,13 @@ class _EntryDetailScreenState extends State<EntryDetailScreen> {
     );
 
     if (confirmed == true && context.mounted) {
-      await context.read<JournalService>().deleteEntry(widget.entry.id);
+      final journal = context.read<JournalService>();
+      final isOffline = context.read<AuthService>().isOfflineMode;
+      if (isOffline) {
+        await journal.deleteEntryLocal(widget.entry.id);
+      } else {
+        await journal.deleteEntry(widget.entry.id);
+      }
       if (context.mounted) Navigator.pop(context);
     }
   }

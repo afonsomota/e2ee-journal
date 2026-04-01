@@ -5,8 +5,10 @@ import 'services/auth_service.dart';
 import 'services/emotion_service.dart';
 import 'services/journal_service.dart';
 import 'services/crypto_service.dart';
+import 'services/local_storage_service.dart';
 import 'screens/auth_screen.dart';
 import 'screens/journal_list_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
 import 'theme.dart';
 
@@ -54,17 +56,53 @@ class _AppRoot extends StatefulWidget {
 
 class _AppRootState extends State<_AppRoot> {
   bool _showSplash = true;
+  bool _initializing = true;
+  bool _onboardingCompleted = false;
+
+  Future<void> _initAfterSplash() async {
+    final auth = context.read<AuthService>();
+    final crypto = context.read<CryptoService>();
+
+    await auth.tryRestoreSession(crypto);
+
+    final localStorage = LocalStorageService();
+    _onboardingCompleted = await localStorage.isOnboardingCompleted();
+
+    if (mounted) {
+      setState(() => _initializing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     if (_showSplash) {
       return SplashScreen(
-        onComplete: () => setState(() => _showSplash = false),
+        onComplete: () {
+          setState(() => _showSplash = false);
+          _initAfterSplash();
+        },
+      );
+    }
+
+    if (_initializing) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
       );
     }
 
     final auth = context.watch<AuthService>();
+
+    // Logged-in user → server-backed journal
     if (auth.isLoggedIn) return const JournalListScreen();
-    return const AuthScreen();
+
+    // Offline user who completed onboarding → local journal
+    if (auth.isOfflineMode && _onboardingCompleted) {
+      return const JournalListScreen();
+    }
+
+    // First launch → onboarding (write first entry)
+    return const OnboardingScreen();
   }
 }
