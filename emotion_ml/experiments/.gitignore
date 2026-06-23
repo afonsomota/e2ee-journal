@@ -1,0 +1,4 @@
+# Generated experiment outputs (re-run scripts to regenerate)
+*_results.json
+cv_results.json
+timing_results.json
