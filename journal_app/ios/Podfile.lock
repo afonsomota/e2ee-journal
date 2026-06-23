@@ -1,15 +1,12 @@
 PODS:
   - Flutter (1.0.0)
-  - flutter_concrete (0.0.1)
+  - flutter_concrete (0.4.0)
   - flutter_secure_storage (6.0.0):
     - Flutter
   - path_provider_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
-    - Flutter
-    - FlutterMacOS
-  - "sodium_libs (3.4.6+4)":
     - Flutter
     - FlutterMacOS
 
@@ -19,7 +16,6 @@ DEPENDENCIES:
   - flutter_secure_storage (from `.symlinks/plugins/flutter_secure_storage/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
-  - sodium_libs (from `.symlinks/plugins/sodium_libs/darwin`)
 
 EXTERNAL SOURCES:
   Flutter:
@@ -32,16 +28,13 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
-  sodium_libs:
-    :path: ".symlinks/plugins/sodium_libs/darwin"
 
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  flutter_concrete: e5c4c6c6653b05959e685766203fa47fc49cf802
+  flutter_concrete: 556eee52f4600a2e2440d2c1a9bf2103d76b2a4d
   flutter_secure_storage: 1ed9476fba7e7a782b22888f956cce43e2c62f13
   path_provider_foundation: bb55f6dbba17d0dccd6737fe6f7f34fbd0376880
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
-  sodium_libs: 650f802d77b08c737ca4fed4ed68e822fa560c5a
 
 PODFILE CHECKSUM: 3c63482e143d1b91d2d2560aee9fb04ecc74ac7e
 

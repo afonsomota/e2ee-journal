@@ -2,6 +2,12 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Flutter",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart"
+    },
+    {
       "name": "backend",
       "type": "debugpy",
       "request": "launch",
@@ -13,7 +19,8 @@
       "cwd": "${workspaceFolder}/journal_backend",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "LOG_LEVEL": "DEBUG"
+        "LOG_LEVEL": "DEBUG",
+        "ENVIRONMENT": "development"
       }
     },
     {
