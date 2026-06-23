@@ -12,6 +12,7 @@
 ///   cd journal_app
 ///   LD_LIBRARY_PATH=../flutter_concrete/rust/target/debug \
 ///     flutter test test/services/emotion_service_integration_test.dart --timeout 15m
+library;
 
 import 'dart:convert';
 import 'dart:io';
@@ -76,10 +77,14 @@ class _TestVectorizer {
 
     // L2 normalize TF-IDF
     double norm = 0.0;
-    for (int i = 0; i < _nFeatures; i++) norm += tf[i] * tf[i];
+    for (int i = 0; i < _nFeatures; i++) {
+      norm += tf[i] * tf[i];
+    }
     norm = math.sqrt(norm);
     if (norm > 0) {
-      for (int i = 0; i < _nFeatures; i++) tf[i] /= norm;
+      for (int i = 0; i < _nFeatures; i++) {
+        tf[i] /= norm;
+      }
     }
 
     // SVD projection
@@ -94,11 +99,15 @@ class _TestVectorizer {
 
     // L2 normalize LSA
     double lsaNorm = 0.0;
-    for (int i = 0; i < _nComponents; i++) lsaNorm += lsa[i] * lsa[i];
+    for (int i = 0; i < _nComponents; i++) {
+      lsaNorm += lsa[i] * lsa[i];
+    }
     lsaNorm = math.sqrt(lsaNorm);
     final result = Float32List(_nComponents);
     if (lsaNorm > 0) {
-      for (int i = 0; i < _nComponents; i++) result[i] = lsa[i] / lsaNorm;
+      for (int i = 0; i < _nComponents; i++) {
+        result[i] = lsa[i] / lsaNorm;
+      }
     }
     return result;
   }
