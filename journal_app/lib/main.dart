@@ -5,8 +5,6 @@ import 'services/auth_service.dart';
 import 'services/emotion_service.dart';
 import 'services/journal_service.dart';
 import 'services/crypto_service.dart';
-import 'services/local_storage_service.dart';
-import 'screens/auth_screen.dart';
 import 'screens/journal_list_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/splash_screen.dart';
@@ -57,16 +55,12 @@ class _AppRoot extends StatefulWidget {
 class _AppRootState extends State<_AppRoot> {
   bool _showSplash = true;
   bool _initializing = true;
-  bool _onboardingCompleted = false;
 
   Future<void> _initAfterSplash() async {
     final auth = context.read<AuthService>();
     final crypto = context.read<CryptoService>();
 
     await auth.tryRestoreSession(crypto);
-
-    final localStorage = LocalStorageService();
-    _onboardingCompleted = await localStorage.isOnboardingCompleted();
 
     if (mounted) {
       setState(() => _initializing = false);
@@ -97,10 +91,10 @@ class _AppRootState extends State<_AppRoot> {
     // Logged-in user → server-backed journal
     if (auth.isLoggedIn) return const JournalListScreen();
 
-    // Offline user who completed onboarding → local journal
-    if (auth.isOfflineMode && _onboardingCompleted) {
-      return const JournalListScreen();
-    }
+    // Offline user → local journal. Offline mode is only ever entered from
+    // the onboarding flow (after the first entry is saved), so this flag
+    // alone is enough to route past onboarding.
+    if (auth.isOfflineMode) return const JournalListScreen();
 
     // First launch → onboarding (write first entry)
     return const OnboardingScreen();

@@ -429,6 +429,7 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOffline = context.watch<AuthService>().isOfflineMode;
     final preview = entry.content.length > 160
         ? '${entry.content.substring(0, 160)}\u2026'
         : entry.content;
@@ -450,7 +451,7 @@ class _EntryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
+              _buildHeader(isOffline),
               const SizedBox(height: 10),
               _buildPreview(preview),
               const SizedBox(height: 14),
@@ -462,7 +463,7 @@ class _EntryCard extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isOffline) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -490,15 +491,38 @@ class _EntryCard extends StatelessWidget {
               ),
           ],
         ),
-        Icon(
-          entry.encryptedBlob != null
-              ? Icons.lock
-              : Icons.lock_open_outlined,
-          size: 18,
-          color: entry.encryptedBlob != null
-              ? AppColors.primary.withValues(alpha: 0.4)
-              : AppColors.outline.withValues(alpha: 0.3),
-        ),
+        // Offline entries aren't E2E-encrypted, so an (un)lock icon misleads.
+        // Signal plainly that the entry lives only on this device.
+        if (isOffline)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.smartphone,
+                size: 13,
+                color: AppColors.outline.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'ON DEVICE',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.outline,
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          )
+        else
+          Icon(
+            entry.encryptedBlob != null
+                ? Icons.lock
+                : Icons.lock_open_outlined,
+            size: 18,
+            color: entry.encryptedBlob != null
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : AppColors.outline.withValues(alpha: 0.3),
+          ),
       ],
     );
   }
