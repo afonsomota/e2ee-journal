@@ -10,6 +10,7 @@ import '../services/crypto_service.dart';
 import '../services/emotion_service.dart';
 import '../models/journal_entry.dart';
 import '../theme.dart';
+import 'auth_screen.dart';
 import 'entry_editor_screen.dart';
 import 'entry_detail_screen.dart';
 
@@ -68,14 +69,18 @@ class _JournalListScreenState extends State<JournalListScreen> {
           _buildShieldBadge(),
           const SizedBox(width: 10),
           Expanded(child: _buildBrandColumn()),
-          Text(
-            '@${auth.currentUser?.username ?? ''}',
-            style: AppTypography.bodySmall.copyWith(
-              color: AppColors.onSurfaceVariant,
+          if (auth.isOfflineMode) ...[
+            _buildSignUpButton(),
+          ] else ...[
+            Text(
+              '@${auth.currentUser?.username ?? ''}',
+              style: AppTypography.bodySmall.copyWith(
+                color: AppColors.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          _buildLogoutButton(),
+            const SizedBox(width: 8),
+            _buildLogoutButton(),
+          ],
         ],
       ),
     );
@@ -95,6 +100,9 @@ class _JournalListScreenState extends State<JournalListScreen> {
   }
 
   Widget _buildBrandColumn() {
+    final auth = context.watch<AuthService>();
+    final isOffline = auth.isOfflineMode;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -108,29 +116,79 @@ class _JournalListScreenState extends State<JournalListScreen> {
         ),
         Row(
           children: [
-            Consumer<CryptoService>(
-              builder: (_, crypto, _) => Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color:
-                      crypto.hasKeys ? AppColors.primary : AppColors.secondary,
-                  shape: BoxShape.circle,
+            if (isOffline) ...[
+              Icon(Icons.smartphone,
+                  size: 10,
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.6)),
+              const SizedBox(width: 6),
+              Text(
+                'STORED ON DEVICE',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                  letterSpacing: 2.0,
+                  fontSize: 9,
                 ),
               ),
-            ),
+            ] else ...[
+              Consumer<CryptoService>(
+                builder: (_, crypto, _) => Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: crypto.hasKeys
+                        ? AppColors.primary
+                        : AppColors.secondary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'END-TO-END ENCRYPTED',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
+                  letterSpacing: 2.0,
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignUpButton() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuthScreen()),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.primaryContainer.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.person_add_outlined,
+                size: 14, color: AppColors.primary),
             const SizedBox(width: 6),
             Text(
-              'E2EE PROTECTED',
-              style: AppTypography.labelSmall.copyWith(
-                color: AppColors.onSurfaceVariant.withValues(alpha: 0.6),
-                letterSpacing: 2.0,
-                fontSize: 9,
+              'Sign Up',
+              style: GoogleFonts.manrope(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
               ),
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 
@@ -154,6 +212,7 @@ class _JournalListScreenState extends State<JournalListScreen> {
   // ── Section tabs ────────────────────────────────────────────────────────
 
   Widget _buildSectionTabs(JournalService journal) {
+    final isOffline = context.watch<AuthService>().isOfflineMode;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -165,13 +224,15 @@ class _JournalListScreenState extends State<JournalListScreen> {
             isActive: _showMyEntries,
             onTap: () => setState(() => _showMyEntries = true),
           ),
-          const SizedBox(width: 24),
-          _SectionTab(
-            label: 'Shared with Me',
-            count: journal.sharedWithMe.length,
-            isActive: !_showMyEntries,
-            onTap: () => setState(() => _showMyEntries = false),
-          ),
+          if (!isOffline) ...[
+            const SizedBox(width: 24),
+            _SectionTab(
+              label: 'Shared with Me',
+              count: journal.sharedWithMe.length,
+              isActive: !_showMyEntries,
+              onTap: () => setState(() => _showMyEntries = false),
+            ),
+          ],
         ],
       ),
     );
@@ -368,6 +429,7 @@ class _EntryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOffline = context.watch<AuthService>().isOfflineMode;
     final preview = entry.content.length > 160
         ? '${entry.content.substring(0, 160)}\u2026'
         : entry.content;
@@ -389,7 +451,7 @@ class _EntryCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(),
+              _buildHeader(isOffline),
               const SizedBox(height: 10),
               _buildPreview(preview),
               const SizedBox(height: 14),
@@ -401,7 +463,7 @@ class _EntryCard extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isOffline) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -429,15 +491,38 @@ class _EntryCard extends StatelessWidget {
               ),
           ],
         ),
-        Icon(
-          entry.encryptedBlob != null
-              ? Icons.lock
-              : Icons.lock_open_outlined,
-          size: 18,
-          color: entry.encryptedBlob != null
-              ? AppColors.primary.withValues(alpha: 0.4)
-              : AppColors.outline.withValues(alpha: 0.3),
-        ),
+        // Offline entries aren't E2E-encrypted, so an (un)lock icon misleads.
+        // Signal plainly that the entry lives only on this device.
+        if (isOffline)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.smartphone,
+                size: 13,
+                color: AppColors.outline.withValues(alpha: 0.8),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'ON DEVICE',
+                style: AppTypography.labelSmall.copyWith(
+                  color: AppColors.outline,
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ],
+          )
+        else
+          Icon(
+            entry.encryptedBlob != null
+                ? Icons.lock
+                : Icons.lock_open_outlined,
+            size: 18,
+            color: entry.encryptedBlob != null
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : AppColors.outline.withValues(alpha: 0.3),
+          ),
       ],
     );
   }

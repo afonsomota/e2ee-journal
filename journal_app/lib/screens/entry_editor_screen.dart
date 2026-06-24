@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 
 import '../models/emotion_result.dart';
 import '../models/journal_entry.dart';
+import '../services/auth_service.dart';
 import '../services/journal_service.dart';
 import '../services/crypto_service.dart';
 import '../services/emotion_service.dart';
@@ -50,8 +51,15 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
 
     setState(() => _saving = true);
     final journal = context.read<JournalService>();
+    final isOffline = context.read<AuthService>().isOfflineMode;
 
-    if (_isEditing) {
+    if (isOffline) {
+      if (_isEditing) {
+        await journal.updateEntryLocal(widget.entry!.id, content);
+      } else {
+        await journal.createEntryLocal(content);
+      }
+    } else if (_isEditing) {
       await journal.updateEntry(widget.entry!.id, content);
     } else if (_encrypted) {
       await journal.createEntry(content);
@@ -77,6 +85,7 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
   @override
   Widget build(BuildContext context) {
     final crypto = context.watch<CryptoService>();
+    final isOffline = context.watch<AuthService>().isOfflineMode;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -184,8 +193,10 @@ class _EntryEditorScreenState extends State<EntryEditorScreen> {
 
                     const SizedBox(height: 24),
 
-                    // Encryption pill
-                    if (_isEditing)
+                    // Encryption pill (hidden in offline mode)
+                    if (isOffline)
+                      _LocalEntryPill()
+                    else if (_isEditing)
                       _EncryptionPill(
                         isEncrypted: widget.entry!.encryptedBlob != null,
                         isToggleable: false,
@@ -316,6 +327,40 @@ class _EncryptionPill extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ── Local Entry Pill (offline mode) ──
+
+class _LocalEntryPill extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLowest,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.outlineVariant.withValues(alpha: 0.15),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.smartphone, size: 16, color: AppColors.outline),
+          const SizedBox(width: 8),
+          Text(
+            'LOCAL ENTRY',
+            style: GoogleFonts.manrope(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 2.0,
+              color: AppColors.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
